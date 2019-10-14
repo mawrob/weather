@@ -7,7 +7,8 @@
  */
 #include "Particle.h"
 #include <IoTNodePower.h>
-#include <WeatherLevel.h>
+// #include <WeatherLevel.h>
+#include "WeatherLevel.h"
 #include <thingspeak-webhooks.h>
 #include <IoTNodeWeatherLevelGlobals.h>
 #include <ArduinoJson.h>
