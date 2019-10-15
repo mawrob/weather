@@ -70,8 +70,6 @@ float  WeatherLevel::getAndResetAnemometerMPH(float * gustMPH)
 float WeatherLevel::getAndResetRainInches()
 {
     float result = RainScaleInches * float(rainEventCount);
-    String check = String(RainScaleInches)+"*"+String(rainEventCount)+"="+String(result);
-    Serial.println(check);
     rainEventCount = 0;
     return result;
 }

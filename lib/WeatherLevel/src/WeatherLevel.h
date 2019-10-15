@@ -127,7 +127,6 @@ class WeatherLevel
         return;
       }
       rainEventCount++; //Increase this minute's amount of rain
-      Serial.println(rainEventCount);
       lastRainEvent = timeRainEvent; // set up for next event
     }
 
