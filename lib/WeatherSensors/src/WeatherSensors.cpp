@@ -27,12 +27,12 @@
 // Functions available in Wiring sketches, this library, and other libraries
 void WeatherSensors::begin(void)
 {
-//  pinMode(AnemometerPin, INPUT_PULLUP);
+
   AnemoneterPeriodTotal = 0;
   AnemoneterPeriodReadingCount = 0;
   GustPeriod = UINT_MAX;  //  The shortest period (and therefore fastest gust) observed
   lastAnemoneterEvent = 0;
-//  attachInterrupt(AnemometerPin, handleAnemometerEvent, FALLING);
+
 
   barom.begin();
   barom.setModeBarometer();
@@ -40,6 +40,31 @@ void WeatherSensors::begin(void)
   barom.enableEventFlags();
 
   am2315.begin();
+
+  Serial.begin(9600);
+  Serial.println("Light Sensor Test"); Serial.println("");
+
+  sensor_t sensor;
+  tsl.getSensor(&sensor);
+  Serial.println("------------------------------------");
+  Serial.print  ("Sensor:       "); Serial.println(sensor.name);
+  Serial.print  ("Driver Ver:   "); Serial.println(sensor.version);
+  Serial.print  ("Unique ID:    "); Serial.println(sensor.sensor_id);
+  Serial.print  ("Max Value:    "); Serial.print(sensor.max_value); Serial.println(" lux");
+  Serial.print  ("Min Value:    "); Serial.print(sensor.min_value); Serial.println(" lux");
+  Serial.print  ("Resolution:   "); Serial.print(sensor.resolution); Serial.println(" lux");  
+  Serial.println("------------------------------------");
+  Serial.println("");
+  delay(500);
+
+  /* Initialise the sensor */
+  if(!tsl.begin())
+  {
+    /* There was a problem detecting the ADXL345 ... check your connections */
+    Serial.print("Ooops, no TSL2561 detected ... Check your wiring or I2C ADDR!");
+  }
+  tsl.enableAutoRange(true);
+  tsl.setIntegrationTime(TSL2561_INTEGRATIONTIME_13MS);
 }
 
 float  WeatherSensors::getAndResetAnemometerMPH(float * gustMPH)
@@ -58,6 +83,68 @@ float  WeatherSensors::getAndResetAnemometerMPH(float * gustMPH)
     *gustMPH = AnemometerScaleMPH  * 1000.0 / float(GustPeriod);
     GustPeriod = UINT_MAX;
     return result;
+}
+
+void WeatherSensors::captureBatteryVoltage()
+{
+  unsigned int rawVoltage = 0;
+  Wire.requestFrom(0x4D, 2);
+  if (Wire.available() == 2)
+  {
+    rawVoltage = (Wire.read() << 8) | (Wire.read());
+    batVoltageTotal += (float)(rawVoltage)/4096.0*13.64; // 3.3*(4.7+1.5)/1.5
+    batVoltageCount ++;
+  }  
+}
+
+uint16_t WeatherSensors::getAndResetBatteryMV()
+{
+ uint16_t result = (uint16_t) 1000*(batVoltageTotal/batVoltageCount);
+ batVoltageTotal = 0;
+ batVoltageCount = 0;
+ return result;
+}
+
+void WeatherSensors::captureLightLux()
+{
+  /* Get a new sensor event */ 
+  sensors_event_t event;
+  tsl.getEvent(&event);
+
+  /* Display the results (light is measured in lux) */
+  /* If event.light = 0 lux the sensor is probably saturated
+    and no reliable data could be generated! */
+  if (event.light)
+  {
+    // Serial.print(event.light); Serial.println(" lux");
+    lightLuxTotal += (unsigned int)event.light;
+    lightLuxCount ++;
+    // Serial.println(lightLuxTotal);
+    // Serial.println(lightLuxCount);
+  }
+    else
+  {
+    /* If event.light = 0 lux the sensor is probably saturated
+       and no reliable data could be generated! */
+    Serial.println("Sensor overload");
+  }
+}
+
+uint16_t WeatherSensors::getAndResetLightLux()
+{
+  if (lightLuxTotal)
+  {
+    uint16_t result = (uint16_t)(lightLuxTotal/lightLuxCount);
+    lightLuxTotal=0;
+    lightLuxCount=0;
+    return result;
+  }
+  else
+  {
+    lightLuxTotal=0;
+    lightLuxCount=0;
+    return NULL;
+  } 
 }
 
 
@@ -173,9 +260,6 @@ if (validTH){
       pressurePascalsTotal += pressurePascals;
       pressurePascalsReadingCount++;
   }
-
-  //Maybe get lux and voltage here?
-
   return;
 }
 
@@ -311,7 +395,9 @@ void WeatherSensors::getAndResetAllSensors()
   sensorReadings.humid =(uint8_t) ceil(humidityRH);
   float pressure = getAndResetPressurePascals();
   sensorReadings.barometerhPa = pressure/10.0;
-// Light and voltage needed
+  // Light and voltage needed
+  sensorReadings.lux = getAndResetLightLux();
+  sensorReadings.millivolts=getAndResetBatteryMV();
 }
 
 // Convert sensorData to CSV String in US units
@@ -336,9 +422,9 @@ String WeatherSensors::sensorReadingsToCsvUS()
 //  ","+
 //  minimiseNumericString(String::format("%.1f",(Float)(sensorReadings.gust_metersph/1609.34)),1)+
   ","+
-  minimiseNumericString(String::format("%.2f",0),2)+ // replace with voltage/lux
+  minimiseNumericString(String::format("%.3f",(float)sensorReadings.millivolts/1000.0),3)+ // replace with voltage/lux
   ","+
-  minimiseNumericString(String::format("%.1f",0),1)+
+  String(sensorReadings.lux)+
   ",,,,"+
   String(0) // this was rangeref put in something else
   ;
@@ -369,9 +455,9 @@ String WeatherSensors::sensorReadingsToCsvUS(sensorReadings_t readings)
 //  ","+
 //  minimiseNumericString(String::format("%.1f",(Float)(readings.gust_metersph/1609.34)),1)+
   ","+
-  minimiseNumericString(String::format("%.2f",0),2)+
+  minimiseNumericString(String::format("%.3f",(float)sensorReadings.millivolts/1000.0),3)+
   ","+
-  minimiseNumericString(String::format("%.1f",0),1)+
+  String(sensorReadings.lux)+
   ",,,,"+
   String(0)
   ;

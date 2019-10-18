@@ -105,7 +105,7 @@ char const* sensorNames[] = {
   "Air Temperature F",      // "field4=",
   "Rainfall in.",           // "field5=",
   "Air Pressure in.",       // "field6=",
-  "Voltage",                // "field7"
+  "Battery Voltage V",      // "field7"
   "Light Intensity lux",    // "field8=",
   "",                       // "latitude=",
   "",                       // "longitude=",
@@ -154,7 +154,7 @@ bool tickleWD = false;
 unsigned long timeToNextSendMS;
 
 // Change this value to force hard reset and clearing of FRAM when Flashing
-const int firstRunTest = 1122122;
+const int firstRunTest = 1122123;
 
 String deviceStatus;
 String i2cDevices;
@@ -356,6 +356,8 @@ void loop() {
   {
     sensors.captureTempHumidityPressure();
     sensors.captureWindVane();
+    sensors.captureLightLux();
+    sensors.captureBatteryVoltage();
     readyToCapturePollSensors = false;
     #ifdef IOTDEBUG
     Serial.println("capture");

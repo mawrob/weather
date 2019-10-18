@@ -19,6 +19,7 @@
 #include <MCP7941x.h>
 #include "WeatherGlobals.h"
 #include <RunningMedian16Bit.h>
+#include <Adafruit_TSL2561_U.h>
 
 // library interface description
 class WeatherSensors
@@ -79,14 +80,20 @@ class WeatherSensors
     void captureTempHumidityPressure();
     void captureAirTempHumid();
     void capturePressure();
+    void captureLightLux();
+    void captureBatteryVoltage();
 
     float getAndResetWindVaneDegrees();
     float getAndResetTempF();
     float getAndResetHumidityRH();
     float getAndResetPressurePascals();
-    void getAndResetAllSensors();
+    uint16_t getAndResetLightLux();
+    uint16_t getAndResetBatteryMV();
 
-     uint16_t getAirTempKMedian();
+    void getAndResetAllSensors();
+    
+
+    uint16_t getAirTempKMedian();
     uint16_t getRHMedian();
 
     String sensorReadingsToCsvUS();
@@ -99,6 +106,7 @@ class WeatherSensors
     RunningMedian airTempKMedian;
     RunningMedian relativeHumidtyMedian;
     MCP7941x rtc;
+    Adafruit_TSL2561_Unified tsl = Adafruit_TSL2561_Unified(TSL2561_ADDR_FLOAT, 12345);
 
     String minimiseNumericString(String ss, int n);
 
@@ -131,9 +139,14 @@ class WeatherSensors
     unsigned int tempFReadingCount = 0;
     float pressurePascalsTotal = 0.0;
     unsigned int pressurePascalsReadingCount = 0;
-
-    float lightLux = 0.0;
+    //Light
+    uint16_t lightLux = 0;
+    unsigned int lightLuxTotal = 0;
     unsigned int lightLuxCount = 0;
+    //Battery Voltage
+    float batVoltage = 0;
+    float batVoltageTotal = 0;
+    unsigned int batVoltageCount = 0;
     ///
     float lookupRadiansFromRaw(unsigned int analogRaw);
 
