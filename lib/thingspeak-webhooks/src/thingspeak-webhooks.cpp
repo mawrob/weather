@@ -149,7 +149,7 @@ String data = "{\"c\":\"" + channel + "\",\"k\":\"" + api_key + "\",\"t\":\"" + 
 // }
 boolean ThingSpeakWebhooks::TSCreateChan(char const* keys[], char const* values[], int& returnIndex)
 {
-    char pub[256]; // Size limited by Particle.publish()
+    char pub[622]; // Size limited by Particle.publish()
     strcpy(pub, "{");
     boolean valid = false;
     uint8_t i=0;
@@ -195,7 +195,7 @@ boolean ThingSpeakWebhooks::TSCreateChan(char const* keys[], char const* values[
                     i++;
                 }
             break;
-
+            //Never get here?
                 state = ADD_NEXT;
             break;
 
@@ -212,7 +212,7 @@ boolean ThingSpeakWebhooks::TSCreateChan(char const* keys[], char const* values[
                     if (strlen(values[i])>0)
                     {
                         len = len + strlen(keys[i]) + strlen(values[i]) + 6;
-                        if (len<=256)
+                        if (len<=622)
                         {
                             strcat(pub, ",\"");
                             strcat(pub, keys[i]);
@@ -257,15 +257,30 @@ boolean ThingSpeakWebhooks::TSCreateChan(char const* keys[], char const* values[
     return valid;
 }
 
+// Webhook
+// {
+//     "event": "TSWriteOneSetting",
+//     "responseTopic": "{{PARTICLE_DEVICE_ID}}/hook-response/TSWriteOneSetting",
+//     "url": "https://api.thingspeak.com/channels/{{c}}.json",
+//     "requestType": "PUT",
+//     "noDefaults": true,
+//     "rejectUnauthorized": true,
+//     "headers": {
+//         "Content-Type": "application/x-www-form-urlencoded"
+//     },
+//     "form": {
+//         "api_key": "XXapikeyXX",
+//         "{{n}}": "{{d}}"
+//     }
+// }
 boolean ThingSpeakWebhooks::updateTSChan(char const* channel, char const* values[], char const* labels[], int& arrayIndex)
 {
-    char pub[256];
+    char pub[622];
     unsigned long startTime = millis();
     unsigned long timeOut = 13000;
     boolean valid = false;
     boolean done = false;
     int count = 0;
-// delay(1000);
     unsigned long beginTime = millis();
     delay(1);
     // pointer to array values
@@ -289,7 +304,7 @@ boolean ThingSpeakWebhooks::updateTSChan(char const* channel, char const* values
                 //Serial.println(millis()-beginTime);
 
                 len = strlen(labels[i]) + strlen(values[i]) + strlen(channel) + 15;
-                if (len<=256)
+                if (len<=622)
                 {
                     strcpy(pub, "{\"n\":\"");
                     strcat(pub, labels[i]);

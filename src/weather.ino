@@ -7,9 +7,9 @@
  */
 #include "Particle.h"
 #include <IoTNodePower.h>
-#include <WeatherLevel.h>
+#include "WeatherSensors.h"
 #include <thingspeak-webhooks.h>
-#include <IoTNodeWeatherLevelGlobals.h>
+#include "WeatherGlobals.h"
 #include <ArduinoJson.h>
 #include <MCP7941x.h>
 #include <FramI2C.h>
@@ -44,7 +44,7 @@ const int firmwareVersion = 0;
 // registering functions and variables BEFORE connecting to the cloud.
 //SYSTEM_MODE(SEMI_AUTOMATIC);
 
-// Use structs defined in IoTNodeWeatherLevelGlobals.h
+// Use structs defined in WeatherGlobals.h
 sensorReadings_t sensorReadings;
 config_t config;
 status_t status;
@@ -97,7 +97,7 @@ char const* chanLabels[] = {
 
 //Sensor Names
 char const* sensorNames[] = {
-  "Weather and level station using the Sentient Things IoT Node",   // "description=",
+  "Weather station using the Sentient Things IoT Node",   // "description=",
   "",                       // "elevation=",
   "Wind Direction deg.",    // "field1=",
   "Wind Speed mph",         // "field2=",
@@ -105,15 +105,15 @@ char const* sensorNames[] = {
   "Air Temperature F",      // "field4=",
   "Rainfall in.",           // "field5=",
   "Air Pressure in.",       // "field6=",
-  "Depth ft.",              // "field7" = reference - measured range
-  "Water or Ground Temp. F",    // "field8=",
+  "Voltage",                // "field7"
+  "Light Intensity lux",    // "field8=",
   "",                       // "latitude=",
   "",                       // "longitude=",
-  "Weather and level station", // "name=",
+  "Weather station",        // "name=",
   "false",                  // "public_flag=",
-  "",                      // "tags=",
+  "",                       // "tags=",
   "http://sentientthings.com",                       // "url=",
-  "Note - Snow or water depth = Range Reference - measured range",   // "metadata=",
+  "",                       // "metadata=",
   "end"
 };
 
@@ -126,10 +126,8 @@ Timer pollSensorTimer(SENSOR_POLL_TIME_MS, capturePollSensors);
 
 Timer sensorSendTimer(SENSOR_SEND_TIME_MS, getResetAndSendSensors);
 
-WeatherLevel sensors; //Interrupts for anemometer and rain bucket
+WeatherSensors sensors; //Interrupts for anemometer and rain bucket
 // are set up here too
-
-// IoTNode iotnode;
 
 IoTNodePower power;
 
@@ -156,7 +154,7 @@ bool tickleWD = false;
 unsigned long timeToNextSendMS;
 
 // Change this value to force hard reset and clearing of FRAM when Flashing
-const int firstRunTest = 1122123;
+const int firstRunTest = 1122122;
 
 String deviceStatus;
 String i2cDevices;
@@ -165,15 +163,13 @@ bool resetDevice = false;
 // setup() runs once, when the device is first turned on.
 void setup() {
   // register cloudy things
-  Particle.function("rangemm", getRangemm);
-  Particle.function("rangetype", getRangeType);
   Particle.variable("version",firmwareVersion);
   Particle.variable("devicestatus",deviceStatus);
 
 
   // Subscribe to the TSBulkWriteCSV response event
   Particle.subscribe(System.deviceID() + "/hook-response/TSBulkWriteCSV", TSBulkWriteCSVHandler, MY_DEVICES);
-// Put a test in here for first run
+  // Put a test in here for first run
   // Subscribe to the TSCreateChannel response event
   Particle.subscribe(System.deviceID() + "/hook-response/TSCreateChannel", TSCreateChannelHandler, MY_DEVICES);
 
@@ -185,13 +181,10 @@ void setup() {
   #ifdef IOTDEBUG
   delay(5000);
   #endif
-  // iotnode.begin();
+
   power.begin();
   power.setPowerON(EXT3V3,true);
   power.setPowerON(EXT5V,true); 
-  // iotnode.setPowerON(EXT3V3,true);
-  // iotnode.setPowerON(EXT5V,true);
-  // iotnode.getConfig();
   framConfig.readElement(0, (uint8_t*)&config, myResult);
 
   // Code for initialization of the IoT Node
@@ -203,37 +196,21 @@ void setup() {
 
   if (config.testCheck != firstRunTest)
   {
-//boolean TSCreateChan(char const* keys[], char const* values[], int& returnIndex);
-    // iotnode.framFormat();
+    //boolean TSCreateChan(char const* keys[], char const* values[], int& returnIndex);
     myFram.format();
     thingspeak.TSCreateChan(webhookKey,sensorNames, returnIndex);
     unsigned long webhookTime = millis();
-    // iotnode.getConfig();
     framConfig.readElement(0, (uint8_t*)&config, myResult);
-    config.rangeReferencemm = 10000;
+    // Waits for TSCreateChannelHandler to run and set config.testCheck = firstRunTest
     while (config.testCheck != firstRunTest && millis()-webhookTime<60000)
     {
       //Particle.publish("Trying to create ThingSpeak channel");
       delay(5000);
-      // iotnode.getConfig();
-      framConfig.readElement(0, (uint8_t*)&config, myResult);
-      config.rangeReferencemm = 10000;
-      // iotnode.saveConfig();
-      framConfig.writeElement(0, (uint8_t*)&config, myResult);
     }
     System.reset();
   }
 
   // end of first run code.
-
-  // iotnode.getStatus();
-  framStatus.readElement(0, (uint8_t*)&status, myResult);
-  // The range reference is set at a default of 10000mm when the TS channel is created
-  // Particle function getRangemm is used to set it for the actual installation
-  sensorReadings.rangeReferencemm = config.rangeReferencemm;
-
-  // iotnode.saveConfig();
-  framConfig.writeElement(0, (uint8_t*)&config, myResult);
 
   if (syncRTC())
   {
@@ -243,14 +220,14 @@ void setup() {
   {
     Serial.println("RTC not sync'ed with cloud");
   }
-/////
-// Wake up the AM2315 sensor
-// Wire.beginTransmission(0x5c);
-// delay(2);
-// Wire.endTransmission();
-//
-  
-//#ifdef IOTDEBUG
+  /////
+  // Wake up the AM2315 sensor
+  // Wire.beginTransmission(0x5c);
+  // delay(2);
+  // Wire.endTransmission();
+  //
+    
+  //#ifdef IOTDEBUG
   byte error, address;
   int nDevices;
   int i2cTime;
@@ -276,7 +253,6 @@ void setup() {
       i2cDevices.concat("0");
       }
       String addr = String(address,HEX);
-      // Serial.print(address,HEX);
       Serial.print(addr);
       i2cDevices.concat(addr);
       i2cDevices.concat(" ");
@@ -300,14 +276,14 @@ void setup() {
 
   Serial.println(sizeof(sensorReadings));
 
-  delay(5000);           // wait 5 seconds for next scan
-//#endif
+  delay(5000);
+  //#endif
 
   sensors.begin();
   pollSensorTimer.start();
   sensorSendTimer.start();
 
-/////
+  /////
 }
 
 
@@ -320,12 +296,11 @@ void loop() {
     if (!dataRing.isEmpty())
     {
       sensorReadings_t temporaryReadings;
-      // iotnode.peekLastSensorReadingsFromFRAM((uint8_t*)&temporaryReadings);
       dataRing.peekLastElement((uint8_t*)&temporaryReadings);
       lastCsvData = "|" + sensors.sensorReadingsToCsvUS(temporaryReadings);
       messageSize = 2;
     }
-    // iotnode.pushSensorReadingsToFRAM(); //Remember to update indices
+    //Remember to update indices
     dataRing.pushElement((uint8_t*)&sensorReadings);
     String currentCsvData = sensors.sensorReadingsToCsvUS();
 
@@ -348,15 +323,12 @@ void loop() {
     {
       Serial.println("Timeout");
     }
-
-    // iotnode.saveStatus();
     dataRing.getIndices(&status.ringStart,&status.ringEnd);
     framStatus.writeElement(0, (uint8_t*)&status, myResult);
     readyToGetResetAndSendSensors = false;
 
     if (tickleWD)
     {
-      // iotnode.tickleWatchdog();
       power.tickleWatchdog();
       tickleWD = false;
     }
@@ -371,11 +343,9 @@ void loop() {
     String(config.testCheck)+"|"+
     String(config.writeKey)+"|"+
     String(config.readKey)+"|"+
-    String(config.maxbotixType)+"|"+
     String(config.unitType)+"|"+
     String(config.firmwareVersion)+"|"+
     String(config.particleTimeout)+"|"+
-    String(config.rangeReferencemm)+"|"+
     String(config.latitude)+"|"+
     String(config.longitude)+"|"+
     i2cDevices;
@@ -391,19 +361,12 @@ void loop() {
     Serial.println("capture");
     #endif
   }
-// If flag set then reset here
+  // If flag set then reset here
   if (resetDevice)
   {
     System.reset();
   }
 
-}
-
-void serialEvent1()
-{
-  // Process serialEvent1
-  // Can also be done outside the thread
-  sensors.parseMaxbotixToBuffer();
 }
 
 void capturePollSensors()
@@ -420,42 +383,6 @@ void getResetAndSendSensors()
   readyToGetResetAndSendSensors = true;
 }
 
-int getRangemm(String rangemm)
-{
-#ifdef IOTDEBUG
-  Serial.println(rangemm);
-#endif
-  config.rangeReferencemm = rangemm.toInt();
-  // iotnode.saveConfig();
-  framConfig.writeElement(0, (uint8_t*)&config, myResult);
-  delay(20);
-  resetDevice = true;
-  // System.reset();
-  return 1;
-}
-
-int getRangeType(String rangeType)
-{
-#ifdef IOTDEBUG
-  Serial.println(rangeType);
-#endif
-  char type = rangeType.charAt(0);
-  if (type == 'i' || type == 'c' || type == 'm')
-  {
-    config.maxbotixType = rangeType.charAt(0);
-    // iotnode.saveConfig();
-    framConfig.writeElement(0, (uint8_t*)&config, myResult);
-    delay(20);
-    resetDevice = true;
-    // System.reset();
-    return 1;
-  }
-  else
-  {
-    return -1;
-  }
-}
-
 void TSBulkWriteCSVHandler(const char *event, const char *data) {
   timeToNextSendMS = SENSOR_SEND_TIME_MS - (millis() - timeToNextSendMS);
   String resp = "true";
@@ -464,18 +391,14 @@ void TSBulkWriteCSVHandler(const char *event, const char *data) {
     sensorReadings_t temporaryReadings;
     if (messageSize == 2)
     {
-      // iotnode.popLastSensorReadingsFromFRAM((uint8_t*)&temporaryReadings);
-      // iotnode.popLastSensorReadingsFromFRAM((uint8_t*)&temporaryReadings);
       dataRing.popLastElement((uint8_t*)&temporaryReadings);
       dataRing.popLastElement((uint8_t*)&temporaryReadings);
     }
     else
     {
-      // iotnode.popLastSensorReadingsFromFRAM((uint8_t*)&temporaryReadings);
       dataRing.popLastElement((uint8_t*)&temporaryReadings);
     }
 
-    // iotnode.saveStatus();
     dataRing.getIndices(&status.ringStart,&status.ringEnd);
     framStatus.writeElement(0, (uint8_t*)&status, myResult);
     #ifdef IOTDEBUG
@@ -504,14 +427,9 @@ void TSCreateChannelHandler(const char *event, const char *data) {
       strcpy(config.writeKey,write_key);
       strcpy(config.readKey,read_key);
       config.testCheck = firstRunTest;
-           /// Defaults
-      config.maxbotixType = 'm';
-      // config.maxReadings = 300;
+      /// Defaults
       config.particleTimeout = 20000;
-      // Add code for this to be updated as a variable
-      config.rangeReferencemm = 0;
       // Save to FRAM
-      // iotnode.saveConfig();
       framConfig.writeElement(0, (uint8_t*)&config, myResult);
       #ifdef IOTDEBUG
       Serial.println(channelId);
@@ -522,7 +440,7 @@ void TSCreateChannelHandler(const char *event, const char *data) {
       char buf[len];
       char const* chan = itoa(channelId,buf,10);
       thingspeak.updateTSChan(chan,sensorNames,chanLabels,returnIndex);
-      String chanTags = "weather, level, wind, temperature, humidity, pressure, Sentient Things," + System.deviceID();
+      String chanTags = "weather, light, wind, temperature, humidity, pressure, Sentient Things," + System.deviceID();
       String lab = "tags";
       delay(1001);
       thingspeak.TSWriteOneSetting(channelId, chanTags, lab);

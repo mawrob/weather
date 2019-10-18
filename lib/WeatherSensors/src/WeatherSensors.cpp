@@ -1,12 +1,12 @@
 /*
-  WeatherLevel.h - Weather and Level adapter library
+  WeatherSensors.h - Weather and Level adapter library for weather and light
   Copyright (c) 2018 Sentient Things, Inc.  All right reserved.
 */
 
 
 
 // include this library's description file
-#include "WeatherLevel.h"
+#include "WeatherSensors.h"
 
 #include <math.h>
 
@@ -14,7 +14,7 @@
 // Constructor /////////////////////////////////////////////////////////////////
 // Function that handles the creation and setup of instances
 
-/*WeatherLevel::WeatherLevel()
+/*WeatherSensors::WeatherLevel()
 {
   // initialize this instance's variables
 
@@ -25,7 +25,7 @@
 */
 // Public Methods //////////////////////////////////////////////////////////////
 // Functions available in Wiring sketches, this library, and other libraries
-void WeatherLevel::begin(void)
+void WeatherSensors::begin(void)
 {
 //  pinMode(AnemometerPin, INPUT_PULLUP);
   AnemoneterPeriodTotal = 0;
@@ -40,15 +40,9 @@ void WeatherLevel::begin(void)
   barom.enableEventFlags();
 
   am2315.begin();
-
-  ds18b20.begin();
-  ds18b20.setResolution(11);
-  ds18b20.requestTemperatures();
-
-  memset(serial1Buf, NULL, sizeof serial1Buf);
 }
 
-float  WeatherLevel::getAndResetAnemometerMPH(float * gustMPH)
+float  WeatherSensors::getAndResetAnemometerMPH(float * gustMPH)
 {
     if(AnemoneterPeriodReadingCount == 0)
     {
@@ -67,14 +61,14 @@ float  WeatherLevel::getAndResetAnemometerMPH(float * gustMPH)
 }
 
 
-float WeatherLevel::getAndResetRainInches()
+float WeatherSensors::getAndResetRainInches()
 {
     float result = RainScaleInches * float(rainEventCount);
     rainEventCount = 0;
     return result;
 }
 /// Wind Vane
-void WeatherLevel::captureWindVane() {
+void WeatherSensors::captureWindVane() {
     // Read the wind vane, and update the running average of the two components of the vector
     unsigned int windVaneRaw = analogRead(WindVanePin);
 //Serial.println(windVaneRaw);
@@ -89,7 +83,7 @@ void WeatherLevel::captureWindVane() {
     return;
 }
 
-float WeatherLevel::getAndResetWindVaneDegrees()
+float WeatherSensors::getAndResetWindVaneDegrees()
 {
     if(windVaneReadingCount == 0) {
         return 0;
@@ -108,7 +102,7 @@ float WeatherLevel::getAndResetWindVaneDegrees()
    return result;
 }
 
-float WeatherLevel::lookupRadiansFromRaw(unsigned int analogRaw)
+float WeatherSensors::lookupRadiansFromRaw(unsigned int analogRaw)
 {
 //Serial.println(analogRaw);
     // The mechanism for reading the weathervane isn't arbitrary, but effectively, we just need to look up which of the 16 positions we're in.
@@ -135,7 +129,7 @@ float WeatherLevel::lookupRadiansFromRaw(unsigned int analogRaw)
 
 /// end Wind vane
 
-void WeatherLevel::captureTempHumidityPressure() {
+void WeatherSensors::captureTempHumidityPressure() {
   // Read the humidity and pressure sensors, and update the running average
   // The running (mean) average is maintained by keeping a running sum of the observations,
   // and a count of the number of observations
@@ -180,21 +174,12 @@ if (validTH){
       pressurePascalsReadingCount++;
   }
 
-  //Measure water temperature from the DS18B20
-  float waterTempC = ds18b20.getCRCTempC();
-  float waterTempF = (waterTempC * 9.0) / 5.0 + 32.0;
-  if(waterTempF > -50 && waterTempF < 150)
-  {
-      // Add the observation to the running sum, and increment the number of observations
-      waterTempFTotal += waterTempF;
-      waterTempFReadingCount++;
-  }
-delay(2);
-ds18b20.requestTemperatures();
+  //Maybe get lux and voltage here?
+
   return;
 }
 
-void WeatherLevel::captureAirTempHumid() {
+void WeatherSensors::captureAirTempHumid() {
   // Read the humidity and pressure sensors, and update the running average
   // The running (mean) average is maintained by keeping a running sum of the observations,
   // and a count of the number of observations
@@ -229,21 +214,7 @@ void WeatherLevel::captureAirTempHumid() {
     }
 }
 
-void WeatherLevel::captureWaterTemp() {
-  //Measure water temperature from the DS18B20
-  float waterTempC = ds18b20.getCRCTempC();
-  float waterTempF = (waterTempC * 9.0) / 5.0 + 32.0;
-  if(waterTempF > -50 && waterTempF < 150)
-  {
-      // Add the observation to the running sum, and increment the number of observations
-      waterTempFTotal += waterTempF;
-      waterTempFReadingCount++;
-  }
-  delay(2);
-  ds18b20.requestTemperatures();
-}
-
-void WeatherLevel::capturePressure() {
+void WeatherSensors::capturePressure() {
   //Measure Pressure from the MPL3115A2
   float pressurePascals = barom.readPressure();
 
@@ -257,7 +228,7 @@ void WeatherLevel::capturePressure() {
   }
 }
 
-float WeatherLevel::getAndResetTempF()
+float WeatherSensors::getAndResetTempF()
 {
     if(tempFReadingCount == 0) {
         return 0;
@@ -268,7 +239,7 @@ float WeatherLevel::getAndResetTempF()
     return result;
 }
 
-float WeatherLevel::getAndResetHumidityRH()
+float WeatherSensors::getAndResetHumidityRH()
 {
     if(humidityRHReadingCount == 0) {
         return 0;
@@ -280,7 +251,7 @@ float WeatherLevel::getAndResetHumidityRH()
 }
 
 
-float WeatherLevel::getAndResetPressurePascals()
+float WeatherSensors::getAndResetPressurePascals()
 {
     if(pressurePascalsReadingCount == 0) {
         return 0;
@@ -291,164 +262,39 @@ float WeatherLevel::getAndResetPressurePascals()
     return result;
 }
 
-float WeatherLevel::getAndResetWaterTempF()
-{
-    if(waterTempFReadingCount == 0) {
-        return 0;
-    }
-    float result = waterTempFTotal/float(waterTempFReadingCount);
-    waterTempFTotal = 0.0;
-    waterTempFReadingCount = 0;
-    return result;
-}
 
-float WeatherLevel::getWaterTempC(void)
-{
-  float tempC = ds18b20.getCRCTempC();
-  ds18b20.requestTemperatures();
-  return tempC;
-
-}
-
-int16_t WeatherLevel::getWaterTempRAW(void)
-{
-  int16_t tempC = ds18b20.getCRCTempRAW();
-  ds18b20.requestTemperatures();
-  return tempC;
-
-}
-
-void WeatherLevel::parseMaxbotixToBuffer()
-{
-    char c = Serial1.read();
-// Serial.print(c);
-
-
-    // Check for start of range reading RxxxCR or RxxxxCR
-    // Can be mm, cm, or inches.
-    if (c == 'R')
-    {
-        readingRange = true;
-        rangeBegin = millis();
-        serial1BufferIndex = 0;
-        memset(serial1Buf, 0x00, 6);
-        return;
-    }
-
-    // True if R has been received ..
-    if (readingRange)
-    {
-        // valid if last R was less than 500ms ago
-        if (millis()-rangeBegin<=500)
-        {
-            // To test valid range digits from 0 to 9
-            uint8_t cnum = c -'0';
-            // True if this is the end of the range message CR
-            if (c=='\r')
-            {
-                // and the number of digits is 3 or 4
-                if (serial1BufferIndex==3 || serial1BufferIndex==4)
-                {
-  // Serial.println(String(serial1Buf));
-                    String range = String(serial1Buf);
-                    int rangeInt = range.toInt();
-                    maxbotixMedian.add((uint16_t) rangeInt);
-                    readingRange = false;
-                    serial1BufferIndex = 0;
-                    memset(serial1Buf, 0x00, 6);
-                    return;
-                }
-                // if not then there is an error
-                else
-                {
-                   readingRange = false;
-                   serial1BufferIndex = 0;
-                   memset(serial1Buf, 0x00, 6);
-                   return;
-                }
-            }
-            // if the received char is 0 to 9 add it to the buffer
-            else if (cnum >= 0 && cnum <=9)
-            {
-                serial1Buf[serial1BufferIndex] = c;
-                serial1BufferIndex++;
-                return;
-            }
-            // if neither then there is an error
-            else
-            {
-                readingRange = false;
-                serial1BufferIndex = 0;
-                memset(serial1Buf, 0x00, 6);
-                return;
-            }
-        }
-        else
-        // readings have timed out so reset
-        {
-            readingRange = false;
-            serial1BufferIndex = 0;
-            memset(serial1Buf, 0x00, 6);
-            return;
-        }
-    }
-    else
-    {
-        return;
-    }
-}
-
-
-uint16_t WeatherLevel::getRangeMedian()
-{
-  uint16_t rangeMedian = maxbotixMedian.getMedian();
-  return rangeMedian;
-}
-
-uint16_t WeatherLevel::getAirTempKMedian()
+uint16_t WeatherSensors::getAirTempKMedian()
 {
   uint16_t airKMedian = airTempKMedian.getMedian();
   return airKMedian;
 }
 
-uint16_t WeatherLevel::getRHMedian()
+uint16_t WeatherSensors::getRHMedian()
 {
   uint16_t RHMedian = relativeHumidtyMedian.getMedian();
   return RHMedian;
 }
 
-// bool WeatherLevel::getAirTempAndHumidRAW(int16_t &tRAW, uint16_t &hRAW)
-// {
-// if(am2315.getTemperatureAndHumidityRAW(tRAW, hRAW))
-//   {
-//     return true;
-//   }
-//   else
-//   {
-//     return false;
-//   }
-// //  am2315.requestTemperatureAndHumidity();
-// }
 
-float WeatherLevel::readPressure()
+float WeatherSensors::readPressure()
 {
   return barom.readPressure();
 }
 /*
 //Weather
-uint32_t unixTime;
-uint8_t windDegrees; // 1 degree resolution is plenty
-uint16_t wind_metersph; //meters per hour
-uint8_t humid; //percent
-uint16_t airTempKx10; // Temperature in deciKelvin
-uint16_t rainmm; // millimeters
-float barometerkPa; // Could fit into smaller type if needed
-uint16_t gust_metersph; //meters per hour
-// Water
-uint16_t rangemm; //Range in millimeters
-uint16_t waterTempKx10; // Temperature in deciKelvin
+    uint32_t unixTime; //system_tick_t (uint32_t)
+    uint16_t windDegrees; // 1 degree resolution is plenty
+    uint16_t wind_metersph; //meters per hour
+    uint8_t humid; //percent
+    uint16_t airTempKx10; // Temperature in deciKelvin
+    uint16_t rainmmx1000; // millimetersx1000 - resolution is 0.2794mm 0.011"
+    float barometerhPa; // Could fit into smaller type if needed
+    uint16_t gust_metersph; //meters per hour
+    // Light
+    uint16_t millivolts; // voltage in mV
+    uint16_t lux; //Light level in lux
 */
-void WeatherLevel::getAndResetAllSensors()
+void WeatherSensors::getAndResetAllSensors()
 {
   uint32_t timeRTC = rtc.rtcNow();
   sensorReadings.unixTime = timeRTC;
@@ -461,35 +307,15 @@ void WeatherLevel::getAndResetAllSensors()
   sensorReadings.windDegrees = (uint16_t) ceil(windDegrees);
   float airTempF = getAndResetTempF();
   sensorReadings.airTempKx10 = (uint16_t) ceil((airTempF-32.0)*50.0/9.0 + 2731.5);
-  // sensorReadings.airTempKx10 = airTempKMedian.getMedian();
-  // float humidityRH = getAndResetHumidityRH();
   uint16_t humidityRH = relativeHumidtyMedian.getMedian();
   sensorReadings.humid =(uint8_t) ceil(humidityRH);
   float pressure = getAndResetPressurePascals();
   sensorReadings.barometerhPa = pressure/10.0;
-  float waterTempF = getAndResetWaterTempF();
-  sensorReadings.waterTempKx10 = (uint16_t) ceil((waterTempF-32.0)*50.0/9.0 + 2731.5);
-  uint16_t range;
-  // Could be in in.=i or cm=c or mm=m depending on the sensor
-  switch (config.maxbotixType)
-  {
-    case 'i':
-      range = (uint16_t)ceil((float)getRangeMedian()*25.4);
-      break;
-    case 'c':
-      range = getRangeMedian()*10;
-      break;
-    case 'm':
-      range = getRangeMedian();
-      break;
-    default:
-      range = getRangeMedian();
-  }
-  sensorReadings.rangemm = range;
+// Light and voltage needed
 }
 
 // Convert sensorData to CSV String in US units
-String WeatherLevel::sensorReadingsToCsvUS()
+String WeatherSensors::sensorReadingsToCsvUS()
 {
   String csvData =
 //  String(Time.format(sensorReadings.unixTime, TIME_FORMAT_ISO8601_FULL))+
@@ -510,11 +336,11 @@ String WeatherLevel::sensorReadingsToCsvUS()
 //  ","+
 //  minimiseNumericString(String::format("%.1f",(Float)(sensorReadings.gust_metersph/1609.34)),1)+
   ","+
-  minimiseNumericString(String::format("%.2f",(((float)sensorReadings.rangeReferencemm-(float)sensorReadings.rangemm)/304.8)),2)+ // 25.4*12=304.8
+  minimiseNumericString(String::format("%.2f",0),2)+ // replace with voltage/lux
   ","+
-  minimiseNumericString(String::format("%.1f",(((float)sensorReadings.waterTempKx10-2731.5)*9/50.0+32.0)),1)+
+  minimiseNumericString(String::format("%.1f",0),1)+
   ",,,,"+
-  String(sensorReadings.rangeReferencemm)
+  String(0) // this was rangeref put in something else
   ;
 //add status field = range reference
   return csvData;
@@ -522,7 +348,7 @@ String WeatherLevel::sensorReadingsToCsvUS()
 
 
 // Convert sensorData to CSV String in US units
-String WeatherLevel::sensorReadingsToCsvUS(sensorReadings_t readings)
+String WeatherSensors::sensorReadingsToCsvUS(sensorReadings_t readings)
 {
   String csvData =
 //  String(Time.format(readings.unixTime, TIME_FORMAT_ISO8601_FULL))+
@@ -543,11 +369,11 @@ String WeatherLevel::sensorReadingsToCsvUS(sensorReadings_t readings)
 //  ","+
 //  minimiseNumericString(String::format("%.1f",(Float)(readings.gust_metersph/1609.34)),1)+
   ","+
-  minimiseNumericString(String::format("%.2f",(((float)readings.rangeReferencemm-readings.rangemm)/304.8)),2)+
+  minimiseNumericString(String::format("%.2f",0),2)+
   ","+
-  minimiseNumericString(String::format("%.1f",(((float)readings.waterTempKx10-2731.5)*9.0/50.0+32.0)),1)+
+  minimiseNumericString(String::format("%.1f",0),1)+
   ",,,,"+
-  String(readings.rangeReferencemm)
+  String(0)
   ;
 
   return csvData;
@@ -557,7 +383,7 @@ String WeatherLevel::sensorReadingsToCsvUS(sensorReadings_t readings)
 // Functions only available to other functions in this library
 
 //https://stackoverflow.com/questions/277772/avoid-trailing-zeroes-in-printf
-String WeatherLevel::minimiseNumericString(String ss, int n) {
+String WeatherSensors::minimiseNumericString(String ss, int n) {
     int str_len = ss.length() + 1;
     char s[str_len];
     ss.toCharArray(s, str_len);

@@ -1,5 +1,5 @@
-#ifndef _IOTNODEWEATHERLEVEL
-#define _IOTNODEWEATHERLEVEL
+#ifndef _WEATHERGLOBALS
+#define _WEATHERGLOBALS
 
 // Globals defined here
 
@@ -120,10 +120,10 @@ typedef struct // units chosen for data size and readability
     uint16_t rainmmx1000; // millimetersx1000 - resolution is 0.2794mm 0.011"
     float barometerhPa; // Could fit into smaller type if needed
     uint16_t gust_metersph; //meters per hour
-    // Water
-    uint16_t rangemm; //Range in millimeters
-    uint16_t rangeReferencemm; // Range datum i.e. could be mllw range for tide
-    uint16_t waterTempKx10; // Temperature in deciKelvin
+    // Light
+    uint16_t millivolts; // voltage in mV
+    uint16_t lux; //Light level in lux
+
 
 }sensorReadings_t;
 extern sensorReadings_t sensorReadings;
@@ -135,12 +135,10 @@ typedef struct
   int testCheck;
   char writeKey[17];
   char readKey[17];
-  char maxbotixType; // i = inches, m = mm, c = cm
   char unitType; // U = USA, I = international
   int firmwareVersion;
   // int maxReadings;//=dataRing size
   int particleTimeout;
-  uint16_t rangeReferencemm;
   float latitude;
   float longitude;
 }config_t;
