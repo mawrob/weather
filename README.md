@@ -2,7 +2,7 @@
 Weather station code using the Sentient Things IoT Node and Weather and Level Adapter
 
 Requires the follows Integrations (webhooks) to be added to your Particle account:
-
+'''
 {
     "event": "TSCreateChannel",
     "responseTopic": "{{PARTICLE_DEVICE_ID}}/hook-response/TSCreateChannelJson",
@@ -35,8 +35,9 @@ Requires the follows Integrations (webhooks) to be added to your Particle accoun
         "metadata": "{{m}}"
     }
 }
-
+'''
 ________________________________________
+'''
 {
     "event": "TSWriteOneSetting",
     "responseTopic": "{{PARTICLE_DEVICE_ID}}/hook-response/TSWriteOneSetting",
@@ -52,7 +53,9 @@ ________________________________________
         "{{n}}": "{{d}}"
     }
 }
+'''
 ________________________________________
+'''
 {
     "event": "TSBulkWriteCSV",
     "responseTopic": "{{PARTICLE_DEVICE_ID}}/hook-response/TSBulkWriteCSV",
@@ -70,3 +73,4 @@ ________________________________________
         "updates": "{{d}}"
     }
 }
+'''
