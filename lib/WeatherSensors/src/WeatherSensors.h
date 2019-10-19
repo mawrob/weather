@@ -115,7 +115,7 @@ class WeatherSensors
     // required variables
       // Updated for Oct 2018 v2 Weather and Level board
     int RainPin = N_D2;
-    volatile unsigned int rainEventCount;
+    volatile unsigned int rainEventCount=0;
     unsigned int lastRainEvent;
     float RainScaleInches = 0.011; // Each pulse is .011 inches of rain
 

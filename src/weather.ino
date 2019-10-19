@@ -49,6 +49,17 @@ sensorReadings_t sensorReadings;
 config_t config;
 status_t status;
 
+// Set to true and enter TS chanel ID and keys to use an existing TS channel
+// Set to false if you wish to create a new TS channel the first time the code runs
+bool useManualTSChannel = true;
+const char *manualTSWriteKey = "CW07Q2FUQS3YXXXX";
+const char *manualTSReadKey = "9VBTSXXXXJHOTPQ7";
+const int manualTSChannel = 123456;
+//
+
+// Change this value to force hard reset and clearing of FRAM when Flashing
+const int firstRunTest = 1122124;
+
 // ThingSpeak webhook keys. Do not edit.
 char const* webhookKey[] = {
     "d", // "description=",
@@ -153,8 +164,7 @@ bool tickleWD = false;
 
 unsigned long timeToNextSendMS;
 
-// Change this value to force hard reset and clearing of FRAM when Flashing
-const int firstRunTest = 1122123;
+
 
 String deviceStatus;
 String i2cDevices;
@@ -196,18 +206,39 @@ void setup() {
 
   if (config.testCheck != firstRunTest)
   {
-    //boolean TSCreateChan(char const* keys[], char const* values[], int& returnIndex);
     myFram.format();
-    thingspeak.TSCreateChan(webhookKey,sensorNames, returnIndex);
-    unsigned long webhookTime = millis();
-    framConfig.readElement(0, (uint8_t*)&config, myResult);
-    // Waits for TSCreateChannelHandler to run and set config.testCheck = firstRunTest
-    while (config.testCheck != firstRunTest && millis()-webhookTime<60000)
+    if (useManualTSChannel)
     {
-      //Particle.publish("Trying to create ThingSpeak channel");
-      delay(5000);
+      // Use the manually entered ThingSpeak channel and keys above
+      config.channelId = manualTSChannel;
+      strcpy(config.writeKey,manualTSWriteKey);
+      strcpy(config.readKey,manualTSReadKey);
+      config.testCheck = firstRunTest;
+      /// Defaults
+      config.particleTimeout = 20000;
+      // Save to FRAM
+      framConfig.writeElement(0, (uint8_t*)&config, myResult);
+      #ifdef IOTDEBUG
+      Serial.println(manualTSChannel);
+      Serial.println(manualTSWriteKey);
+      Serial.println(manualTSReadKey);
+      #endif
     }
-    System.reset();
+    else
+    {
+      // Create a new ThingSpeak Channel
+      thingspeak.TSCreateChan(webhookKey,sensorNames, returnIndex);
+      unsigned long webhookTime = millis();
+      framConfig.readElement(0, (uint8_t*)&config, myResult);
+      // Waits for TSCreateChannelHandler to run and set config.testCheck = firstRunTest
+      while (config.testCheck != firstRunTest && millis()-webhookTime<60000)
+      {
+        //Particle.publish("Trying to create ThingSpeak channel");
+        delay(5000);
+      }
+      System.reset();      
+    }
+    
   }
 
   // end of first run code.
