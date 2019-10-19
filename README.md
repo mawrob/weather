@@ -8,7 +8,7 @@ Other hardware required:
 - [Particle Boron](https://store.particle.io/products/boron-lte) or other Particle device
 - [AM2315 Humidity and Temperature Sensor with Sentient Things connector](https://sentientthings.com/products/am2315-temperature-and-humidity-sensor)
 - [Optional Particle to Adafruit Feather Adapter](https://sentientthings.com/products/particle-to-adafruit-feather-adapter) If you use a Photon or Electron
-- DIY outdoor [Light sensor now discontinued!](https://learn.adafruit.com/flora-lux-sensor?view=all)
+- DIY outdoor [Light sensor](https://www.amazon.com/Adafruit-TSL2591-Dynamic-Digital-ADA1980/dp/B00XW2OFWW/ref=sr_1_1)
 
 Requires the following [Integrations (webhooks)](https://docs.particle.io/tutorials/device-cloud/webhooks/#custom-template) to be added to your Particle account:
 ```
