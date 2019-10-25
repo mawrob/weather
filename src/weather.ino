@@ -36,6 +36,8 @@
 
 #define IOTDEBUG
 
+LEDStatus fadeRed(RGB_COLOR_RED, LED_PATTERN_FADE, LED_SPEED_NORMAL, LED_PRIORITY_IMPORTANT);
+
 const int firmwareVersion = 0;
 
 //SYSTEM_THREAD(ENABLED);
@@ -137,6 +139,8 @@ Timer pollSensorTimer(SENSOR_POLL_TIME_MS, capturePollSensors);
 
 Timer sensorSendTimer(SENSOR_SEND_TIME_MS, getResetAndSendSensors);
 
+Timer unpluggedTimer(5000,unplugged);
+
 WeatherSensors sensors; //Interrupts for anemometer and rain bucket
 // are set up here too
 
@@ -195,82 +199,10 @@ void setup() {
   power.begin();
   power.setPowerON(EXT3V3,true);
   power.setPowerON(EXT5V,true); 
-  framConfig.readElement(0, (uint8_t*)&config, myResult);
 
-  // Code for initialization of the IoT Node
-  // i.e. the first time the software runs
-  // 1. A new ThingSpeak channel is created
-  // 2. The channel id and keys are Saved
-  // 3. a firstRunTest variable is saved in persistent memory as a flag to indicate
-  // that the IoT node has been set up already.
+//// Check for attached I2C devices. Make sure that the device is plugged into the IoT Node
+// by checking for the Flash I2C.  If it is not present then do not run the program.
 
-  if (config.testCheck != firstRunTest)
-  {
-    myFram.format();
-    if (useManualTSChannel)
-    {
-      // Use the manually entered ThingSpeak channel and keys above
-      config.channelId = manualTSChannel;
-      strcpy(config.writeKey,manualTSWriteKey);
-      strcpy(config.readKey,manualTSReadKey);
-      config.testCheck = firstRunTest;
-      /// Defaults
-      config.particleTimeout = 20000;
-      // Save to FRAM
-      framConfig.writeElement(0, (uint8_t*)&config, myResult);
-      #ifdef IOTDEBUG
-      Particle.publish("Updating to use channel number:",String(manualTSChannel));
-      Serial.println(manualTSChannel);
-      Serial.println(manualTSWriteKey);
-      Serial.println(manualTSReadKey);
-      #endif
-    }
-    else
-    {
-      // Create a new ThingSpeak Channel
-      thingspeak.TSCreateChan(webhookKey,sensorNames, returnIndex);
-      unsigned long webhookTime = millis();
-      framConfig.readElement(0, (uint8_t*)&config, myResult);
-      // Waits for TSCreateChannelHandler to run and set config.testCheck = firstRunTest
-      while (config.testCheck != firstRunTest && millis()-webhookTime<60000)
-      {
-        #ifdef IOTDEBUG
-        Particle.publish("Trying to create ThingSpeak channel");
-        Serial.println("Trying to create ThingSpeak channel");
-        #endif
-        delay(5000);
-      }
-      System.reset();      
-    }
-    
-  }
-  else
-  {
-    #ifdef IOTDEBUG
-    Particle.publish("Using previously created channel number",String(config.channelId));
-    Serial.println("Using previously created channel number"+String(config.channelId));
-    #endif
-  }
-  
-
-  // end of first run code.
-
-  if (syncRTC())
-  {
-    Serial.println("RTC sync'ed with cloud");
-  }
-  else
-  {
-    Serial.println("RTC not sync'ed with cloud");
-  }
-  /////
-  // Wake up the AM2315 sensor
-  // Wire.beginTransmission(0x5c);
-  // delay(2);
-  // Wire.endTransmission();
-  //
-    
-  //#ifdef IOTDEBUG
   byte error, address;
   int nDevices;
   int i2cTime;
@@ -316,17 +248,97 @@ void setup() {
   else
   Serial.println("done\n");
   Serial.println(millis()-i2cTime);
-
   Serial.println(sizeof(sensorReadings));
 
   delay(5000);
-  //#endif
+  /// End of I2C checking
 
-  sensors.begin();
-  pollSensorTimer.start();
-  sensorSendTimer.start();
+  // Check for the FRAM address
+  if (i2cDevices.indexOf("50 ")==-1)
+  {
+    #ifdef IOTDEBUG
+    Particle.publish("Unplugged","Plug the device into the IoT Node",PRIVATE);
+    Serial.println("Plug the device into the IoT Node");
+    #endif
+    deviceStatus="Device is not plugged into the IoTNode";
+    fadeRed.setActive(true);
+  }
+  else
+  {
+    
+    framConfig.readElement(0, (uint8_t*)&config, myResult);
 
-  /////
+      // Code for initialization of the IoT Node
+      // i.e. the first time the software runs
+      // 1. A new ThingSpeak channel is created
+      // 2. The channel id and keys are Saved
+      // 3. a firstRunTest variable is saved in persistent memory as a flag to indicate
+      // that the IoT node has been set up already.
+
+      if (config.testCheck != firstRunTest)
+      {
+        myFram.format();
+        if (useManualTSChannel)
+        {
+          // Use the manually entered ThingSpeak channel and keys above
+          config.channelId = manualTSChannel;
+          strcpy(config.writeKey,manualTSWriteKey);
+          strcpy(config.readKey,manualTSReadKey);
+          config.testCheck = firstRunTest;
+          /// Defaults
+          config.particleTimeout = 20000;
+          // Save to FRAM
+          framConfig.writeElement(0, (uint8_t*)&config, myResult);
+          #ifdef IOTDEBUG
+          Particle.publish("Updating to use channel number:",String(manualTSChannel),PRIVATE);
+          Serial.println(manualTSChannel);
+          Serial.println(manualTSWriteKey);
+          Serial.println(manualTSReadKey);
+          #endif
+        }
+        else
+        {
+          // Create a new ThingSpeak Channel
+          thingspeak.TSCreateChan(webhookKey,sensorNames, returnIndex);
+          unsigned long webhookTime = millis();
+          framConfig.readElement(0, (uint8_t*)&config, myResult);
+          // Waits for TSCreateChannelHandler to run and set config.testCheck = firstRunTest
+          while (config.testCheck != firstRunTest && millis()-webhookTime<60000)
+          {
+            #ifdef IOTDEBUG
+            Particle.publish("Trying to create ThingSpeak channel",PRIVATE);
+            Serial.println("Trying to create ThingSpeak channel");
+            #endif
+            delay(5000);
+          }
+          System.reset();      
+        }
+        
+      }
+      else
+      {
+        #ifdef IOTDEBUG
+        Particle.publish("Using previously created channel number",String(config.channelId),PRIVATE);
+        Serial.println("Using previously created channel number"+String(config.channelId));
+        #endif
+      }
+      
+
+      // end of first run code.
+
+      if (syncRTC())
+      {
+        Serial.println("RTC sync'ed with cloud");
+      }
+      else
+      {
+        Serial.println("RTC not sync'ed with cloud");
+      }
+
+      sensors.begin();
+      pollSensorTimer.start();
+      sensorSendTimer.start();  
+  }
 }
 
 
@@ -403,7 +415,7 @@ void loop() {
     sensors.captureBatteryVoltage();
     readyToCapturePollSensors = false;
     #ifdef IOTDEBUG
-    Particle.publish("Capturing sensors");
+    Particle.publish("Capturing sensors",PRIVATE);
     Serial.println("capture");
     #endif
   }
@@ -494,7 +506,7 @@ void TSCreateChannelHandler(const char *event, const char *data) {
       ///
   } else {
       Serial.println("Parse failed");
-      Particle.publish("Parse failed",data);
+      Particle.publish("Parse failed",data,PRIVATE);
   }
 
 }
@@ -523,8 +535,17 @@ bool syncRTC()
     if (!sync)
     {
         #ifdef DEBUG
-        Particle.publish("Time NOT synced",String(Time.format(syncNow, TIME_FORMAT_ISO8601_FULL)+"  "+Time.format(rtc.rtcNow(), TIME_FORMAT_ISO8601_FULL)));
+        Particle.publish("Time NOT synced",String(Time.format(syncNow, TIME_FORMAT_ISO8601_FULL)+"  "+Time.format(rtc.rtcNow(), TIME_FORMAT_ISO8601_FULL)),PRIVATE);
         #endif
     }
     return sync;
+}
+
+void unplugged()
+{
+  #ifdef IOTDEBUG
+  Particle.publish("Unplugged","Plug the device into the IoT Node",PRIVATE);
+  Serial.println("Plug the device into the IoT Node");
+  #endif
+
 }
