@@ -219,6 +219,7 @@ void setup() {
       // Save to FRAM
       framConfig.writeElement(0, (uint8_t*)&config, myResult);
       #ifdef IOTDEBUG
+      Particle.publish("Updating to use channel number:",String(manualTSChannel));
       Serial.println(manualTSChannel);
       Serial.println(manualTSWriteKey);
       Serial.println(manualTSReadKey);
@@ -233,13 +234,24 @@ void setup() {
       // Waits for TSCreateChannelHandler to run and set config.testCheck = firstRunTest
       while (config.testCheck != firstRunTest && millis()-webhookTime<60000)
       {
-        //Particle.publish("Trying to create ThingSpeak channel");
+        #ifdef IOTDEBUG
+        Particle.publish("Trying to create ThingSpeak channel");
+        Serial.println("Trying to create ThingSpeak channel");
+        #endif
         delay(5000);
       }
       System.reset();      
     }
     
   }
+  else
+  {
+    #ifdef IOTDEBUG
+    Particle.publish("Using previously created channel number",String(config.channelId));
+    Serial.println("Using previously created channel number"+String(config.channelId));
+    #endif
+  }
+  
 
   // end of first run code.
 
@@ -391,6 +403,7 @@ void loop() {
     sensors.captureBatteryVoltage();
     readyToCapturePollSensors = false;
     #ifdef IOTDEBUG
+    Particle.publish("Capturing sensors");
     Serial.println("capture");
     #endif
   }
