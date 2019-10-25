@@ -107,7 +107,7 @@ String data = "{\"c\":\"" + channel + "\",\"k\":\"" + api_key + "\",\"t\":\"" + 
 // number and keys.
 // This function takes equal length char arrays and creates a channel.
 // "end" must be the last value in the array.
-// The Particle.publish limits the data to 256 bytes so the array index is returned
+// The Particle.publish limits the data to 622 bytes so the array index is returned
 // where the createTSChan function left off
 // so that additional fields can be updated using updateTSChan.
 // A returnIndex of -1 means that there are nothing more to update.

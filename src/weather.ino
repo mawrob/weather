@@ -51,16 +51,17 @@ sensorReadings_t sensorReadings;
 config_t config;
 status_t status;
 
-// Set to true and enter TS chanel ID and keys to use an existing TS channel
+// Set to true and enter TS channel ID and keys AND change firstRunTest to use an existing TS channel
 // Set to false if you wish to create a new TS channel the first time the code runs
-bool useManualTSChannel = true;
+bool useManualTSChannel = false;
 const char *manualTSWriteKey = "CW07Q2FUQS3YXXXX";
 const char *manualTSReadKey = "9VBTSXXXXJHOTPQ7";
 const int manualTSChannel = 123456;
 //
 
 // Change this value to force hard reset and clearing of FRAM when Flashing
-const int firstRunTest = 1122124;
+// You have to change this value (if you have flashed before) for the TS channel to change
+const int firstRunTest = 1122123;
 
 // ThingSpeak webhook keys. Do not edit.
 char const* webhookKey[] = {
@@ -497,7 +498,10 @@ void TSCreateChannelHandler(const char *event, const char *data) {
       int len = sizeof(channelId)*8+1;
       char buf[len];
       char const* chan = itoa(channelId,buf,10);
-      thingspeak.updateTSChan(chan,sensorNames,chanLabels,returnIndex);
+      if (returnIndex!=-1)
+      {
+        thingspeak.updateTSChan(chan,sensorNames,chanLabels,returnIndex);
+      }
       String chanTags = "weather, light, wind, temperature, humidity, pressure, Sentient Things," + System.deviceID();
       String lab = "tags";
       delay(1001);
