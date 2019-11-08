@@ -6,6 +6,6 @@
         "*.ino": "cpp"
     },
     "particle.targetDevice": "Weather",
-    "particle.firmwareVersion": "1.4.0",
+    "particle.firmwareVersion": "1.4.2",
     "particle.targetPlatform": "photon"
 }

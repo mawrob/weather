@@ -42,29 +42,98 @@ void WeatherSensors::begin(void)
   am2315.begin();
 
   Serial.begin(9600);
-  Serial.println("Light Sensor Test"); Serial.println("");
+  // Serial.println("Light Sensor Test"); Serial.println("");
 
+  // sensor_t sensor;
+  // tsl.getSensor(&sensor);
+  // Serial.println("------------------------------------");
+  // Serial.print  ("Sensor:       "); Serial.println(sensor.name);
+  // Serial.print  ("Driver Ver:   "); Serial.println(sensor.version);
+  // Serial.print  ("Unique ID:    "); Serial.println(sensor.sensor_id);
+  // Serial.print  ("Max Value:    "); Serial.print(sensor.max_value); Serial.println(" lux");
+  // Serial.print  ("Min Value:    "); Serial.print(sensor.min_value); Serial.println(" lux");
+  // Serial.print  ("Resolution:   "); Serial.print(sensor.resolution); Serial.println(" lux");  
+  // Serial.println("------------------------------------");
+  // Serial.println("");
+  // delay(500);
+
+  // /* Initialise the sensor */
+  // if(!tsl.begin())
+  // {
+  //   /* There was a problem detecting the ADXL345 ... check your connections */
+  //   Serial.print("Ooops, no TSL2561 detected ... Check your wiring or I2C ADDR!");
+  // }
+  // tsl.enableAutoRange(true);
+  // tsl.setIntegrationTime(TSL2561_INTEGRATIONTIME_13MS);
+
+  Serial.println(F("Starting Adafruit TSL2591 Test!"));
+  
+  if (tsl.begin()) 
+  {
+    Serial.println(F("Found a TSL2591 sensor"));
+  } 
+  else 
+  {
+    Serial.println(F("No sensor found ... check your wiring?"));
+    // while (1);
+  }
+    
+  /* Display some basic information on this sensor */
   sensor_t sensor;
   tsl.getSensor(&sensor);
-  Serial.println("------------------------------------");
-  Serial.print  ("Sensor:       "); Serial.println(sensor.name);
-  Serial.print  ("Driver Ver:   "); Serial.println(sensor.version);
-  Serial.print  ("Unique ID:    "); Serial.println(sensor.sensor_id);
-  Serial.print  ("Max Value:    "); Serial.print(sensor.max_value); Serial.println(" lux");
-  Serial.print  ("Min Value:    "); Serial.print(sensor.min_value); Serial.println(" lux");
-  Serial.print  ("Resolution:   "); Serial.print(sensor.resolution); Serial.println(" lux");  
-  Serial.println("------------------------------------");
-  Serial.println("");
+  Serial.println(F("------------------------------------"));
+  Serial.print  (F("Sensor:       ")); Serial.println(sensor.name);
+  Serial.print  (F("Driver Ver:   ")); Serial.println(sensor.version);
+  Serial.print  (F("Unique ID:    ")); Serial.println(sensor.sensor_id);
+  Serial.print  (F("Max Value:    ")); Serial.print(sensor.max_value); Serial.println(F(" lux"));
+  Serial.print  (F("Min Value:    ")); Serial.print(sensor.min_value); Serial.println(F(" lux"));
+  Serial.print  (F("Resolution:   ")); Serial.print(sensor.resolution, 4); Serial.println(F(" lux"));  
+  Serial.println(F("------------------------------------"));
+  Serial.println(F(""));
   delay(500);
+  
+  /* Configure the sensor */
+  // You can change the gain on the fly, to adapt to brighter/dimmer light situations
+  //tsl.setGain(TSL2591_GAIN_LOW);    // 1x gain (bright light)
+  tsl.setGain(TSL2591_GAIN_MED);      // 25x gain
+  //tsl.setGain(TSL2591_GAIN_HIGH);   // 428x gain
+  
+  // Changing the integration time gives you a longer time over which to sense light
+  // longer timelines are slower, but are good in very low light situtations!
+  //tsl.setTiming(TSL2591_INTEGRATIONTIME_100MS);  // shortest integration time (bright light)
+  // tsl.setTiming(TSL2591_INTEGRATIONTIME_200MS);
+  tsl.setTiming(TSL2591_INTEGRATIONTIME_300MS);
+  // tsl.setTiming(TSL2591_INTEGRATIONTIME_400MS);
+  // tsl.setTiming(TSL2591_INTEGRATIONTIME_500MS);
+  // tsl.setTiming(TSL2591_INTEGRATIONTIME_600MS);  // longest integration time (dim light)
 
-  /* Initialise the sensor */
-  if(!tsl.begin())
+  /* Display the gain and integration time for reference sake */  
+  Serial.println(F("------------------------------------"));
+  Serial.print  (F("Gain:         "));
+  tsl2591Gain_t gain = tsl.getGain();
+  switch(gain)
   {
-    /* There was a problem detecting the ADXL345 ... check your connections */
-    Serial.print("Ooops, no TSL2561 detected ... Check your wiring or I2C ADDR!");
+    case TSL2591_GAIN_LOW:
+      Serial.println(F("1x (Low)"));
+      break;
+    case TSL2591_GAIN_MED:
+      Serial.println(F("25x (Medium)"));
+      break;
+    case TSL2591_GAIN_HIGH:
+      Serial.println(F("428x (High)"));
+      break;
+    case TSL2591_GAIN_MAX:
+      Serial.println(F("9876x (Max)"));
+      break;
   }
-  tsl.enableAutoRange(true);
-  tsl.setIntegrationTime(TSL2561_INTEGRATIONTIME_13MS);
+  Serial.print  (F("Timing:       "));
+  Serial.print((tsl.getTiming() + 1) * 100, DEC); 
+  Serial.println(F(" ms"));
+  Serial.println(F("------------------------------------"));
+  Serial.println(F(""));
+
+  // Now we're ready to get readings ... move on to loop()!
+
 }
 
 float  WeatherSensors::getAndResetAnemometerMPH(float * gustMPH)
@@ -107,27 +176,29 @@ uint16_t WeatherSensors::getAndResetBatteryMV()
 
 void WeatherSensors::captureLightLux()
 {
-  /* Get a new sensor event */ 
   sensors_event_t event;
   tsl.getEvent(&event);
-
+ 
   /* Display the results (light is measured in lux) */
-  /* If event.light = 0 lux the sensor is probably saturated
-    and no reliable data could be generated! */
-  if (event.light)
+  // Serial.print(F("[ ")); Serial.print(event.timestamp); Serial.print(F(" ms ] "));
+  if ((event.light == 0) |
+      (event.light > 4294966000.0) | 
+      (event.light <-4294966000.0))
   {
-    // Serial.print(event.light); Serial.println(" lux");
+    /* If event.light = 0 lux the sensor is probably saturated */
+    /* and no reliable data could be generated! */
+    /* if event.light is +/- 4294967040 there was a float over/underflow */
+    Serial.println(F("Invalid data (adjust gain or timing)"));
+  }
+  else
+  {
     lightLuxTotal += (unsigned int)event.light;
     lightLuxCount ++;
     // Serial.println(lightLuxTotal);
-    // Serial.println(lightLuxCount);
+    // Serial.println(lightLuxCount);    
+    // Serial.print(event.light); Serial.println(F(" lux"));
   }
-    else
-  {
-    /* If event.light = 0 lux the sensor is probably saturated
-       and no reliable data could be generated! */
-    Serial.println("Sensor overload");
-  }
+
 }
 
 uint16_t WeatherSensors::getAndResetLightLux()
@@ -425,8 +496,8 @@ String WeatherSensors::sensorReadingsToCsvUS()
   minimiseNumericString(String::format("%.3f",(float)sensorReadings.millivolts/1000.0),3)+ // replace with voltage/lux
   ","+
   String(sensorReadings.lux)+
-  ",,,,"+
-  String(0) // this was rangeref put in something else
+  ",,,,"
+  // +String(0) // this was rangeref put in something else
   ;
 //add status field = range reference
   return csvData;
@@ -458,8 +529,8 @@ String WeatherSensors::sensorReadingsToCsvUS(sensorReadings_t readings)
   minimiseNumericString(String::format("%.3f",(float)sensorReadings.millivolts/1000.0),3)+
   ","+
   String(sensorReadings.lux)+
-  ",,,,"+
-  String(0)
+  ",,,,"
+  // +String(0)
   ;
 
   return csvData;

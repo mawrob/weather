@@ -19,7 +19,8 @@
 #include <MCP7941x.h>
 #include "WeatherGlobals.h"
 #include <RunningMedian16Bit.h>
-#include <Adafruit_TSL2561_U.h>
+#include <Adafruit_TSL2591.h>
+#include <Adafruit_Sensor.h>
 
 // library interface description
 class WeatherSensors
@@ -106,7 +107,7 @@ class WeatherSensors
     RunningMedian airTempKMedian;
     RunningMedian relativeHumidtyMedian;
     MCP7941x rtc;
-    Adafruit_TSL2561_Unified tsl = Adafruit_TSL2561_Unified(TSL2561_ADDR_FLOAT, 12345);
+    Adafruit_TSL2591 tsl = Adafruit_TSL2591(2591); // pass in a number for the sensor identifier (for your use later)
 
     String minimiseNumericString(String ss, int n);
 
