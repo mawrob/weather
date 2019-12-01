@@ -25,6 +25,9 @@
 #define ALARM0_LOCATION 0x0A
 #define ALARM1_LOCATION 0x11
 #define CONTROL_LOCATION 0x07
+#define RTCWKDAY_LOCATION 0x03
+#define PWRDNMIN_LOCATION 0x18
+#define PWRUPMIN_LOCATION 0x1C
 
 //Removed to work with the particle.io devices
 /*
@@ -36,7 +39,18 @@
 */
 
 // Added for the particle.io devices
-#include "application.h"
+#include "Particle.h"
+
+
+enum maskValue {SEC=0b10001111, MIN=0b10011111, HOUR=0b10101111, WKDAY=0b10111111, DATE=0b11001111, ALL=0b11111111};
+// 000 = Seconds match
+// 001 = Minutes match
+// 010 = Hours match (logic takes into account 12-/24-hour operation)
+// 011 = Day of week match
+// 100 = Date match
+// 101 = Reserved; do not use
+// 110 = Reserved; do not use
+// 111 = Seconds, Minutes, Hour, Day of Week, Date and Month
 
   class MCP7941x
   {
@@ -44,30 +58,40 @@
 
       MCP7941x();
 
-      byte decToBcd ( byte val );
-      byte bcdToDec ( byte val );
+      byte decToBcd(byte val);
+      byte bcdToDec(byte val);
 
-      void getMacAddress ( byte *mac_address );
+      void getMacAddress(byte *mac_address);
       void unlockUniqueID();
-      void writeMacAddress ( byte *mac_address );
+      void writeMacAddress (byte *mac_address);
 
-      void setDateTime ( byte sec, byte min, byte hr, byte dayofWk, byte dayofMnth, byte mnth, byte yr );
-      void getDateTime ( byte *sec, byte *minute, byte *hr, byte *dayofWk, byte *dayofMnth, byte *mnth, byte *yr );
-      void enableClock ();
-      void disableClock ();
-      void enableBattery ();
+      void setDateTime( byte sec, byte min, byte hr, byte dayofWk, byte dayofMnth, byte mnth, byte yr );
+      void getDateTime( byte *sec, byte *minute, byte *hr, byte *dayofWk, byte *dayofMnth, byte *mnth, byte *yr );
 
-      void setSramByte ( byte location, byte data );
-      byte getSramByte ( byte location );
+      void getDownDateTime(byte *min, byte *hr, byte *dyofWk, byte *dyofMnth, byte *mnth);
+      // by reference
+      void getDownDateTime(byte &min, byte &hr, byte &dyofWk, byte &dyofMnth, byte &mnth);
 
-      // New timer functions here
+      void getUpDateTime(byte *min, byte *hr, byte *dyofWk, byte *dyofMnth, byte *mnth);
+      // by reference
+      void getUpDateTime(byte &min, byte &hr, byte &dyofWk, byte &dyofMnth, byte &mnth);
 
-      void setUnixTime (uint32_t unixTime);
+      bool powerFailed();
+      void clearPowerFail();
 
-      void setAlarm0DateTime( byte sec, byte minute, byte hr, byte dayofWk, byte dayofMnth, byte mnth);
+      void enableClock();
+      void disableClock();
+      void enableBattery();
+
+      void setSramByte( byte location, byte data );
+      byte getSramByte( byte location );
+
+      void setUnixTime(uint32_t unixTime);
+
+      void setAlarm0DateTime(byte sec, byte minute, byte hr, byte dayofWk, byte dayofMnth, byte mnth);
       void setAlarm0UnixTime(int unixTime);
 
-      void getAlarm0DateTime( byte *sec, byte *minute, byte *hr, byte *dayofWk, byte *dayofMnth, byte *mnth);
+      void getAlarm0DateTime(byte *sec, byte *minute, byte *hr, byte *dayofWk, byte *dayofMnth, byte *mnth);
 
       int getAlarm0UnixTime();
 
@@ -79,7 +103,12 @@
       void enableAlarm1();
 
       void maskAlarm0(String time_match);
+      void maskAlarm0(maskValue mask);
+      void maskAlarm1(String time_match);
+      void maskAlarm1(maskValue mask);
       void clearIntAlarm0();
+      void clearIntAlarm1();
+      void clearIntAlarms();    
 
       void setAlarm0PolHigh();
       void setAlarm0PolLow();
@@ -89,7 +118,6 @@
       void outLow();
 
       void publishAlarm0Debug();
-      // Added by Mawrey
       uint32_t rtcNow();
 
     private:

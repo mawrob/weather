@@ -42,29 +42,6 @@ void WeatherSensors::begin(void)
   am2315.begin();
 
   Serial.begin(9600);
-  // Serial.println("Light Sensor Test"); Serial.println("");
-
-  // sensor_t sensor;
-  // tsl.getSensor(&sensor);
-  // Serial.println("------------------------------------");
-  // Serial.print  ("Sensor:       "); Serial.println(sensor.name);
-  // Serial.print  ("Driver Ver:   "); Serial.println(sensor.version);
-  // Serial.print  ("Unique ID:    "); Serial.println(sensor.sensor_id);
-  // Serial.print  ("Max Value:    "); Serial.print(sensor.max_value); Serial.println(" lux");
-  // Serial.print  ("Min Value:    "); Serial.print(sensor.min_value); Serial.println(" lux");
-  // Serial.print  ("Resolution:   "); Serial.print(sensor.resolution); Serial.println(" lux");  
-  // Serial.println("------------------------------------");
-  // Serial.println("");
-  // delay(500);
-
-  // /* Initialise the sensor */
-  // if(!tsl.begin())
-  // {
-  //   /* There was a problem detecting the ADXL345 ... check your connections */
-  //   Serial.print("Ooops, no TSL2561 detected ... Check your wiring or I2C ADDR!");
-  // }
-  // tsl.enableAutoRange(true);
-  // tsl.setIntegrationTime(TSL2561_INTEGRATIONTIME_13MS);
 
   Serial.println(F("Starting Adafruit TSL2591 Test!"));
   
@@ -75,7 +52,6 @@ void WeatherSensors::begin(void)
   else 
   {
     Serial.println(F("No sensor found ... check your wiring?"));
-    // while (1);
   }
     
   /* Display some basic information on this sensor */
@@ -131,9 +107,6 @@ void WeatherSensors::begin(void)
   Serial.println(F(" ms"));
   Serial.println(F("------------------------------------"));
   Serial.println(F(""));
-
-  // Now we're ready to get readings ... move on to loop()!
-
 }
 
 float  WeatherSensors::getAndResetAnemometerMPH(float * gustMPH)
@@ -229,9 +202,9 @@ float WeatherSensors::getAndResetRainInches()
 void WeatherSensors::captureWindVane() {
     // Read the wind vane, and update the running average of the two components of the vector
     unsigned int windVaneRaw = analogRead(WindVanePin);
-//Serial.println(windVaneRaw);
+    //Serial.println(windVaneRaw);
     float windVaneRadians = lookupRadiansFromRaw(windVaneRaw);
-//Serial.println(windVaneRadians);
+    //Serial.println(windVaneRadians);
     if(windVaneRadians > 0 && windVaneRadians < 6.14159)
     {
         windVaneCosTotal += cos(windVaneRadians);
@@ -445,13 +418,12 @@ float WeatherSensors::readPressure()
     uint16_t rainmmx1000; // millimetersx1000 - resolution is 0.2794mm 0.011"
     float barometerhPa; // Could fit into smaller type if needed
     uint16_t gust_metersph; //meters per hour
-    // Light
     uint16_t millivolts; // voltage in mV
     uint16_t lux; //Light level in lux
 */
 void WeatherSensors::getAndResetAllSensors()
 {
-  uint32_t timeRTC = rtc.rtcNow();
+  uint32_t timeRTC = node.unixTime();
   sensorReadings.unixTime = timeRTC;
   float gustMPH;
   float windMPH = getAndResetAnemometerMPH(&gustMPH);
@@ -489,17 +461,15 @@ String WeatherSensors::sensorReadingsToCsvUS()
   minimiseNumericString(String::format("%.3f",((float)sensorReadings.rainmmx1000/25400)),3)+
   ","+
   minimiseNumericString(String::format("%.2f",(float)sensorReadings.barometerhPa/338.6389),2)+
-// Not enough fields in thingspeak channel for gust
-//  ","+
-//  minimiseNumericString(String::format("%.1f",(Float)(sensorReadings.gust_metersph/1609.34)),1)+
+  // Not enough fields in thingspeak channel for gust
+  //  ","+
+  //  minimiseNumericString(String::format("%.1f",(Float)(sensorReadings.gust_metersph/1609.34)),1)+
   ","+
   minimiseNumericString(String::format("%.3f",(float)sensorReadings.millivolts/1000.0),3)+ // replace with voltage/lux
   ","+
   String(sensorReadings.lux)+
   ",,,,"
-  // +String(0) // this was rangeref put in something else
   ;
-//add status field = range reference
   return csvData;
 }
 
@@ -530,7 +500,6 @@ String WeatherSensors::sensorReadingsToCsvUS(sensorReadings_t readings)
   ","+
   String(sensorReadings.lux)+
   ",,,,"
-  // +String(0)
   ;
 
   return csvData;
@@ -545,7 +514,7 @@ String WeatherSensors::minimiseNumericString(String ss, int n) {
     char s[str_len];
     ss.toCharArray(s, str_len);
 
-//Serial.println(s);
+    //Serial.println(s);
     char *p;
     int count;
 

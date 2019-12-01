@@ -1,6 +1,6 @@
 /*
   WeatherLevel.h - Weather and Level adapter library
-  Copyright (c) 2018 Sentient Things, Inc.  All right reserved.
+  Copyright (c) 2019 Sentient Things, Inc.  All right reserved.
   Based on work by Rob Purser, Mathworks, Inc.
 */
 
@@ -9,25 +9,55 @@
 #define WeatherSensors_h
 
 // include core Particle library
-#include "application.h"
+#include "Particle.h"
 
-
-
-// include description files for other libraries used (if any)
+// include other libraries
 #include <Adafruit_AM2315.h>
 #include <SparkFun_MPL3115A2.h>
-#include <MCP7941x.h>
-#include "WeatherGlobals.h"
 #include <RunningMedian16Bit.h>
 #include <Adafruit_TSL2591.h>
 #include <Adafruit_Sensor.h>
+#include <IoTNode.h>
+
+typedef struct // units chosen for data size and readability
+{
+    //Weather
+    uint32_t unixTime; //system_tick_t (uint32_t)
+    uint16_t windDegrees; // 1 degree resolution is plenty
+    uint16_t wind_metersph; //meters per hour
+    uint8_t humid; //percent
+    uint16_t airTempKx10; // Temperature in deciKelvin
+    uint16_t rainmmx1000; // millimetersx1000 - resolution is 0.2794mm 0.011"
+    float barometerhPa; // Could fit into smaller type if needed
+    uint16_t gust_metersph; //meters per hour
+    uint16_t millivolts; // voltage in mV
+    uint16_t lux; //Light level in lux
+
+
+}sensorReadings_t;
+extern sensorReadings_t sensorReadings;
+
+//struct to save created TS channel Id and keys and to check "first run"
+typedef struct
+{
+  int channelId;
+  int testCheck;
+  char writeKey[17];
+  char readKey[17];
+  char unitType; // U = USA, I = international
+  int firmwareVersion;
+  int particleTimeout;
+  float latitude;
+  float longitude;
+}config_t;
+extern config_t config;
 
 // library interface description
 class WeatherSensors
 {
   // user-accessible "public" interface
   public:
-    WeatherSensors() : airTempKMedian(30), relativeHumidtyMedian(30), rtc()
+    WeatherSensors() : airTempKMedian(30), relativeHumidtyMedian(30), node()
     {
       pinMode(AnemometerPin, INPUT_PULLUP);
       attachInterrupt(AnemometerPin, &WeatherSensors::handleAnemometerEvent, this, FALLING);
@@ -106,15 +136,14 @@ class WeatherSensors
     MPL3115A2 barom;
     RunningMedian airTempKMedian;
     RunningMedian relativeHumidtyMedian;
-    MCP7941x rtc;
+    IoTNode node;
     Adafruit_TSL2591 tsl = Adafruit_TSL2591(2591); // pass in a number for the sensor identifier (for your use later)
 
     String minimiseNumericString(String ss, int n);
 
-
     // Put pin mappings to Particle microcontroller here for now as well as
     // required variables
-      // Updated for Oct 2018 v2 Weather and Level board
+    // Updated for Oct 2018 v2 Weather and Level board
     int RainPin = N_D2;
     volatile unsigned int rainEventCount=0;
     unsigned int lastRainEvent;

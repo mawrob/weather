@@ -1,4 +1,2 @@
-About
-===
-
-Real Time Clock library for the Microchip MCP7941x. Based on work by Ian Chilton.
+# MCP7941x
+Sentient Things MCP79410/1/2 real time clock library

@@ -1,20 +1,15 @@
 /*
- * Project IoTNodeWeatherLevel
- * Description: Weather station and tide level monitor. Measures Weather
-   and tide level data and sends the results to Thingspeak.com
+ * Project Sentient Things IoT Node weather station
+ * Description: Weather station and light level monitor. Measures Weather
+ * and light level data and sends the results to Thingspeak.com
  * Author: Robert Mawrey, Sentient Things, Inc.
- * Date: January 2019
+ * Date: December 2019
  */
 #include "Particle.h"
-#include <IoTNodePower.h>
 #include "WeatherSensors.h"
 #include <thingspeak-webhooks.h>
-#include "WeatherGlobals.h"
 #include <ArduinoJson.h>
-#include <MCP7941x.h>
-#include <FramI2C.h>
-
-
+#include "IoTNode.h"
 
 // // SdFat and SdCardLogHandler does not currently work with Particle Mesh devices
 // ///------
@@ -46,22 +41,22 @@ const int firmwareVersion = 0;
 // registering functions and variables BEFORE connecting to the cloud.
 //SYSTEM_MODE(SEMI_AUTOMATIC);
 
-// Use structs defined in WeatherGlobals.h
+// Use structs defined in WeatherSensors.h
 sensorReadings_t sensorReadings;
 config_t config;
-status_t status;
 
+//********CHANGE BELOW AS NEEDED**************
 // Set to true and enter TS channel ID and keys AND change firstRunTest to use an existing TS channel
 // Set to false if you wish to create a new TS channel the first time the code runs
-bool useManualTSChannel = false;
-const char *manualTSWriteKey = "CW07Q2FUQS3YXXXX";
-const char *manualTSReadKey = "9VBTSXXXXJHOTPQ7";
-const int manualTSChannel = 123456;
-//
-
+bool useManualTSChannel = true;
+const char *manualTSWriteKey = "JEIXDXSFCGVWJZT9"; //Enter your own ThingSpeak Write key
+const char *manualTSReadKey = "2BQPCFHTDEBG44I4"; //Enter your own ThingSpeak Read key
+const int manualTSChannel = 895141; //Enter your ThingSpeak channel number
 // Change this value to force hard reset and clearing of FRAM when Flashing
 // You have to change this value (if you have flashed before) for the TS channel to change
-const int firstRunTest = 1122123;
+const int firstRunTest = 1122121;
+//********CHANGE ABOVE AS NEEDED**************
+
 
 // ThingSpeak webhook keys. Do not edit.
 char const* webhookKey[] = {
@@ -105,7 +100,6 @@ char const* chanLabels[] = {
     "tags",
     "url",
     "metadata",
-        // "api_key=",
     "end" //Do not remove or change
 };
 
@@ -126,7 +120,7 @@ char const* sensorNames[] = {
   "Weather station",        // "name=",
   "false",                  // "public_flag=",
   "",                       // "tags=",
-  "http://sentientthings.com",                       // "url=",
+  "http://sentientthings.com",   // "url=",
   "",                       // "metadata=",
   "end"
 };
@@ -145,31 +139,20 @@ Timer unpluggedTimer(5000,unplugged);
 WeatherSensors sensors; //Interrupts for anemometer and rain bucket
 // are set up here too
 
-IoTNodePower power;
+IoTNode node;
 
 ThingSpeakWebhooks thingspeak;
 
-// Create FRAM instances
-#define PART_NUMBER MB85RC256B
-FramI2C myFram(PART_NUMBER);
-framResult myResult = framUnknownError;
-FramI2CArray framStatus(myFram, 1, sizeof(status), myResult);
-FramI2CArray framConfig(myFram, 1, sizeof(config), myResult);
+// // Create FRAM array and ring
+framArray framConfig = node.makeFramArray(1, sizeof(config));
 
-// Ring_FramArray dataRing(myFram, config.maxReadings, sizeof(sensorReadings), myResult);
-Ring_FramArray dataRing(myFram, 300, sizeof(sensorReadings), myResult);
-
-// Create new instance of RTC:
-MCP7941x rtc;
-
+framRing dataRing = node.makeFramRing(300, sizeof(sensorReadings));
 
 bool readyToGetResetAndSendSensors = false;
 bool readyToCapturePollSensors = false;
 bool tickleWD = false;
 
 unsigned long timeToNextSendMS;
-
-
 
 String deviceStatus;
 String i2cDevices;
@@ -180,7 +163,6 @@ void setup() {
   // register cloudy things
   Particle.variable("version",firmwareVersion);
   Particle.variable("devicestatus",deviceStatus);
-
 
   // Subscribe to the TSBulkWriteCSV response event
   Particle.subscribe(System.deviceID() + "/hook-response/TSBulkWriteCSV", TSBulkWriteCSVHandler, MY_DEVICES);
@@ -197,13 +179,12 @@ void setup() {
   delay(5000);
   #endif
 
-  power.begin();
-  power.setPowerON(EXT3V3,true);
-  power.setPowerON(EXT5V,true); 
+  node.begin();
+  node.setPowerON(EXT3V3,true);
+  node.setPowerON(EXT5V,true);
 
-//// Check for attached I2C devices. Make sure that the device is plugged into the IoT Node
-// by checking for the Flash I2C.  If it is not present then do not run the program.
 
+  // Check for attached I2C devices. Make sure that the device is plugged into the IoT Node
   byte error, address;
   int nDevices;
   int i2cTime;
@@ -267,7 +248,7 @@ void setup() {
   else
   {
     
-    framConfig.readElement(0, (uint8_t*)&config, myResult);
+    framConfig.read(0, (uint8_t*)&config);
 
       // Code for initialization of the IoT Node
       // i.e. the first time the software runs
@@ -276,55 +257,53 @@ void setup() {
       // 3. a firstRunTest variable is saved in persistent memory as a flag to indicate
       // that the IoT node has been set up already.
 
-      if (config.testCheck != firstRunTest)
+    if (config.testCheck != firstRunTest)
+    {
+      // myFram.format();
+      if (useManualTSChannel)
       {
-        myFram.format();
-        if (useManualTSChannel)
-        {
-          // Use the manually entered ThingSpeak channel and keys above
-          config.channelId = manualTSChannel;
-          strcpy(config.writeKey,manualTSWriteKey);
-          strcpy(config.readKey,manualTSReadKey);
-          config.testCheck = firstRunTest;
-          /// Defaults
-          config.particleTimeout = 20000;
-          // Save to FRAM
-          framConfig.writeElement(0, (uint8_t*)&config, myResult);
-          #ifdef IOTDEBUG
-          Particle.publish("Updating to use channel number:",String(manualTSChannel),PRIVATE);
-          Serial.println(manualTSChannel);
-          Serial.println(manualTSWriteKey);
-          Serial.println(manualTSReadKey);
-          #endif
-        }
-        else
-        {
-          // Create a new ThingSpeak Channel
-          thingspeak.TSCreateChan(webhookKey,sensorNames, returnIndex);
-          unsigned long webhookTime = millis();
-          framConfig.readElement(0, (uint8_t*)&config, myResult);
-          // Waits for TSCreateChannelHandler to run and set config.testCheck = firstRunTest
-          while (config.testCheck != firstRunTest && millis()-webhookTime<60000)
-          {
-            #ifdef IOTDEBUG
-            Particle.publish("Trying to create ThingSpeak channel",PRIVATE);
-            Serial.println("Trying to create ThingSpeak channel");
-            #endif
-            delay(5000);
-          }
-          System.reset();      
-        }
-        
+        // Use the manually entered ThingSpeak channel and keys above
+        config.channelId = manualTSChannel;
+        strcpy(config.writeKey,manualTSWriteKey);
+        strcpy(config.readKey,manualTSReadKey);
+        config.testCheck = firstRunTest;
+        /// Defaults
+        config.particleTimeout = 20000;
+        // Save to FRAM
+        framConfig.write(0, (uint8_t*)&config);
+        #ifdef IOTDEBUG
+        Particle.publish("Updating to use channel number:",String(manualTSChannel),PRIVATE);
+        Serial.println(manualTSChannel);
+        Serial.println(manualTSWriteKey);
+        Serial.println(manualTSReadKey);
+        #endif
       }
       else
       {
-        #ifdef IOTDEBUG
-        Particle.publish("Using previously created channel number",String(config.channelId),PRIVATE);
-        Serial.println("Using previously created channel number"+String(config.channelId));
-        #endif
+        // Create a new ThingSpeak Channel
+        thingspeak.TSCreateChan(webhookKey,sensorNames, returnIndex);
+        unsigned long webhookTime = millis();
+        framConfig.read(0, (uint8_t*)&config);
+        // Waits for TSCreateChannelHandler to run and set config.testCheck = firstRunTest
+        while (config.testCheck != firstRunTest && millis()-webhookTime<60000)
+        {
+          #ifdef IOTDEBUG
+          Particle.publish("Trying to create ThingSpeak channel",PRIVATE);
+          Serial.println("Trying to create ThingSpeak channel");
+          #endif
+          delay(5000);
+        }
+        System.reset();      
       }
       
-
+    }
+    else
+    {
+      #ifdef IOTDEBUG
+      Particle.publish("Using previously created channel number",String(config.channelId),PRIVATE);
+      Serial.println("Using previously created channel number"+String(config.channelId));
+      #endif
+    }
       // end of first run code.
 
       if (syncRTC())
@@ -335,7 +314,8 @@ void setup() {
       {
         Serial.println("RTC not sync'ed with cloud");
       }
-
+      // load pointers
+      dataRing.initialize();
       sensors.begin();
       pollSensorTimer.start();
       sensorSendTimer.start();  
@@ -352,12 +332,11 @@ void loop() {
     if (!dataRing.isEmpty())
     {
       sensorReadings_t temporaryReadings;
-      dataRing.peekLastElement((uint8_t*)&temporaryReadings);
+      dataRing.peekLast((uint8_t*)&temporaryReadings);
       lastCsvData = "|" + sensors.sensorReadingsToCsvUS(temporaryReadings);
       messageSize = 2;
     }
-    //Remember to update indices
-    dataRing.pushElement((uint8_t*)&sensorReadings);
+    dataRing.push((uint8_t*)&sensorReadings);
     String currentCsvData = sensors.sensorReadingsToCsvUS();
 
     // Consider putting the SD logging in the IoTNode library
@@ -379,13 +358,11 @@ void loop() {
     {
       Serial.println("Timeout");
     }
-    dataRing.getIndices(&status.ringStart,&status.ringEnd);
-    framStatus.writeElement(0, (uint8_t*)&status, myResult);
     readyToGetResetAndSendSensors = false;
 
     if (tickleWD)
     {
-      power.tickleWatchdog();
+      node.tickleWatchdog();
       tickleWD = false;
     }
 
@@ -450,23 +427,18 @@ void TSBulkWriteCSVHandler(const char *event, const char *data) {
     sensorReadings_t temporaryReadings;
     if (messageSize == 2)
     {
-      dataRing.popLastElement((uint8_t*)&temporaryReadings);
-      dataRing.popLastElement((uint8_t*)&temporaryReadings);
+      dataRing.popLast((uint8_t*)&temporaryReadings);
+      dataRing.popLast((uint8_t*)&temporaryReadings);
     }
     else
     {
-      dataRing.popLastElement((uint8_t*)&temporaryReadings);
+      dataRing.popLast((uint8_t*)&temporaryReadings);
     }
-
-    dataRing.getIndices(&status.ringStart,&status.ringEnd);
-    framStatus.writeElement(0, (uint8_t*)&status, myResult);
     #ifdef IOTDEBUG
     Serial.println(data);
     #endif
   }
   tickleWD = true;
-  //long sleepTime = (long)((timeToNextSendMS-1000)/1000-1);
-  //System.sleep(sleepTime);
 }
 
 void TSCreateChannelHandler(const char *event, const char *data) {
@@ -489,7 +461,7 @@ void TSCreateChannelHandler(const char *event, const char *data) {
       /// Defaults
       config.particleTimeout = 20000;
       // Save to FRAM
-      framConfig.writeElement(0, (uint8_t*)&config, myResult);
+      framConfig.write(0, (uint8_t*)&config);
       #ifdef IOTDEBUG
       Serial.println(channelId);
       Serial.println(write_key);
@@ -519,8 +491,6 @@ bool syncRTC()
 {
     uint32_t syncNow;
     bool sync = false;
-    //Particle.syncTime();
-
     unsigned long syncTimer = millis();
 
     do
@@ -532,14 +502,14 @@ bool syncRTC()
     if (Time.now() > 1465823822)
     {
         syncNow = Time.now();//put time into memory
-        rtc.setUnixTime(syncNow);  //Particle.publish("TIME","Synced");
+        node.setUnixTime(syncNow);
         sync = true;
     }
 
     if (!sync)
     {
         #ifdef DEBUG
-        Particle.publish("Time NOT synced",String(Time.format(syncNow, TIME_FORMAT_ISO8601_FULL)+"  "+Time.format(rtc.rtcNow(), TIME_FORMAT_ISO8601_FULL)),PRIVATE);
+        Particle.publish("Time NOT synced",String(Time.format(syncNow, TIME_FORMAT_ISO8601_FULL)+"  "+Time.format(node.unixTime(), TIME_FORMAT_ISO8601_FULL)),PRIVATE);
         #endif
     }
     return sync;
