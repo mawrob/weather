@@ -1,3 +1,4 @@
+
 /*
  * Project Sentient Things IoT Node weather station
  * Description: Weather station and light level monitor. Measures Weather
@@ -10,21 +11,23 @@
 #include <thingspeak-webhooks.h>
 #include <ArduinoJson.h>
 #include "IoTNode.h"
+#include "SdCardLogHandlerRK.h"
 
-// // SdFat and SdCardLogHandler does not currently work with Particle Mesh devices
-// ///------
-// //#include <SdFat.h> // There is currently a bug in this version of SdFat for gen 3 Particle
-// #include "SdFat.h"
-// #include "SdCardLogHandlerRK.h" //Reverted to local version as public uses old SdFat.h
+#define SERIAL_DEBUG
 
-// // Consider adding SD and logging to IoTNode library
+#ifdef SERIAL_DEBUG
+  #define DEBUG_PRINT(...) Serial.print(__VA_ARGS__)
+  #define DEBUG_PRINTLN(...) Serial.println(__VA_ARGS__)
+#else
+  #define DEBUG_PRINT(...)
+  #define DEBUG_PRINTLN(...)
+#endif
 
-// const int SD_CHIP_SELECT = N_D0;
-// SdFat sd;
-// SdCardLogHandler logHandler(sd, SD_CHIP_SELECT, SPI_FULL_SPEED);
+const int SD_CHIP_SELECT = N_D0;
+SdFat sd;
+SdCardPrintHandler printToSd(sd, SD_CHIP_SELECT, SPI_FULL_SPEED);
 
-// STARTUP(logHandler.withNoSerialLogging().withMaxFilesToKeep(3000));
-// ///------
+STARTUP(printToSd.withMaxFilesToKeep(3000));
 
 #define SENSOR_SEND_TIME_MS 60000
 #define SENSOR_POLL_TIME_MS 2000
@@ -35,7 +38,7 @@ LEDStatus fadeRed(RGB_COLOR_RED, LED_PATTERN_FADE, LED_SPEED_NORMAL, LED_PRIORIT
 
 const int firmwareVersion = 0;
 
-//SYSTEM_THREAD(ENABLED);
+SYSTEM_THREAD(ENABLED);
 
 // Using SEMI_AUTOMATIC mode to get the lowest possible data usage by
 // registering functions and variables BEFORE connecting to the cloud.
@@ -48,13 +51,13 @@ config_t config;
 //********CHANGE BELOW AS NEEDED**************
 // Set to true and enter TS channel ID and keys AND change firstRunTest to use an existing TS channel
 // Set to false if you wish to create a new TS channel the first time the code runs
-bool useManualTSChannel = true;
-const char *manualTSWriteKey = "JEIXDXSFCGVWJZT9"; //Enter your own ThingSpeak Write key
-const char *manualTSReadKey = "2BQPCFHTDEBG44I4"; //Enter your own ThingSpeak Read key
-const int manualTSChannel = 895141; //Enter your ThingSpeak channel number
+bool useManualTSChannel = false;
+const char *manualTSWriteKey = "XXXXXXXXXXXXXXXX";
+const char *manualTSReadKey = "XXXXXXXXXXXXXXXX";
+const int manualTSChannel = 895141;
 // Change this value to force hard reset and clearing of FRAM when Flashing
 // You have to change this value (if you have flashed before) for the TS channel to change
-const int firstRunTest = 1122121;
+const int firstRunTest = 1122124;
 //********CHANGE ABOVE AS NEEDED**************
 
 
@@ -158,6 +161,212 @@ String deviceStatus;
 String i2cDevices;
 bool resetDevice = false;
 
+String i2cNames[] =
+{
+    "RTC",
+    "Exp",
+    "RTC EEPROM",
+    "ADC",
+    "FRAM",
+    "AM2315",
+    "MPL3115",
+    "TSL2591"
+};
+
+byte i2cAddr[]=
+{
+    0x6F, //111
+    0x20, //32
+    0x57, //87
+    0x4D, //77
+    0x50, //80
+    0x5C, //
+    0x60,
+    0x29
+    
+};
+
+/* number of elements in `array` */
+static const size_t i2cLength = sizeof(i2cAddr) / sizeof(i2cAddr[0]);
+
+bool i2cExists[]=
+{
+  false,
+  false,
+  false,
+  false,
+  false,
+  false,
+  false,
+  false
+};
+
+// check i2c devices with i2c names at i2c address of length i2c length returned in i2cExists
+bool checkI2CDevices()
+{
+  byte error, address;
+  bool result = true;
+  for (size_t i; i<i2cLength; ++i)
+  {
+    // The i2c_scanner uses the return value of
+    // the Write.endTransmisstion to see if
+    // a device did acknowledge to the address.
+    address = i2cAddr[i];
+
+    Wire.beginTransmission(address);
+    error = Wire.endTransmission();
+
+    //Try again if !error=0
+    if (!error==0)
+    {
+      delay(10);
+      Wire.beginTransmission(address);
+      error = Wire.endTransmission();
+    }
+
+    //Try reset if !error=0
+    if (!error==0)
+    {
+      Wire.reset();
+      Wire.beginTransmission(address);
+      error = Wire.endTransmission();
+    }
+ 
+    if (error == 0)
+    {
+      DEBUG_PRINTLN(String("Device "+i2cNames[i]+ " at"+" address:0x"+String(address, HEX)));
+      i2cExists[i]=true;
+    }
+    else
+    {
+      DEBUG_PRINTLN(String("Device "+i2cNames[i]+ " NOT at"+" address:0x"+String(address, HEX)));
+      i2cExists[i]=false;
+      result = false;
+    }
+  }
+  return result;
+}
+
+
+void printI2C(int inx)
+{
+    for (int i=0; i<i2cLength; i++)
+        {
+          if (i2cAddr[i] == inx)
+          {
+              DEBUG_PRINTLN(String("Device "+i2cNames[i]+ " at"+" address:0x"+String(i2cAddr[i], HEX)));
+          }
+        }        
+}
+
+void scanI2C()
+{
+  byte error, address;
+  int nDevices;
+ 
+  DEBUG_PRINTLN("Scanning...");
+  nDevices = 0;
+  for(address = 1; address < 127; address++ )
+  {
+    // The i2c_scanner uses the return value of
+    // the Write.endTransmisstion to see if
+    // a device did acknowledge to the address.
+    Wire.beginTransmission(address);
+    error = Wire.endTransmission();
+ 
+    if (error == 0)
+    {
+      printI2C(address);
+ 
+      nDevices++;
+    }
+    else if (error==4)
+    {
+      DEBUG_PRINT("Unknown error at address 0x");
+      if (address<16)
+        DEBUG_PRINT("0");
+      DEBUG_PRINTLN(address,HEX);
+    }    
+  }
+  if (nDevices == 0)
+    DEBUG_PRINTLN("No I2C devices found\n");
+  else
+    DEBUG_PRINTLN("done\n");
+}
+
+// Adding explicit connect routine that has to work before the rest of the code runs
+void connect()
+{
+  #if Wiring_Cellular
+  bool cellready=Cellular.ready();
+  if (!cellready)
+  {
+    DEBUG_PRINTLN("Attempting to connect cellular...");
+    Cellular.on();
+    Cellular.connect();
+    waitFor(Cellular.ready,180000);
+    if (!Cellular.ready())
+    {
+    DEBUG_PRINTLN("Cellular not ready - resetting");
+    delay(200);
+    System.reset();
+    }
+  }
+  else
+  {
+    DEBUG_PRINTLN("Cellular ready");
+  }
+  #endif
+  
+  #if Wiring_WiFi
+  if (!WiFi.hasCredentials())
+  {
+    DEBUG_PRINTLN("Please add WiFi credentials");
+    DEBUG_PRINTLN("Resetting in 60 seconds");
+    delay(60000);
+    System.reset();
+  }
+  bool wifiready=WiFi.ready();
+  if (!wifiready)
+  {
+    DEBUG_PRINTLN("Attempting to connect to WiFi...");
+    WiFi.on();
+    WiFi.connect();
+    waitFor(WiFi.ready,60000);
+    if (!WiFi.ready())
+    {
+    DEBUG_PRINTLN("WiFi not ready - resetting");
+    delay(200);
+    System.reset();
+    }
+  }
+  else
+  {
+    DEBUG_PRINTLN("Cellular ready");
+  }
+  #endif
+
+  bool partconnected=Particle.connected();
+  if (!partconnected)
+  {
+    DEBUG_PRINTLN("Attempting to connect to Particle...");
+    Particle.connect();
+    // Note: that conditions must be a function that takes a void argument function(void) with the () removed,
+    // e.g. Particle.connected instead of Particle.connected().
+    waitFor(Particle.connected,60000);
+    if (!Particle.connected())
+    {
+      DEBUG_PRINTLN("Particle not connected - resetting");
+      delay(200);
+      System.reset();
+    } 
+  }
+  else
+  {
+    DEBUG_PRINTLN("Particle connected");
+  }
+}
+
 // setup() runs once, when the device is first turned on.
 void setup() {
   // register cloudy things
@@ -174,80 +383,36 @@ void setup() {
   // then connect
   //Particle.connect();
   Serial.begin(115200);
-  Serial1.begin(9600);
-  #ifdef IOTDEBUG
-  delay(5000);
-  #endif
+  Serial1.begin(115200);
 
   node.begin();
   node.setPowerON(EXT3V3,true);
   node.setPowerON(EXT5V,true);
 
-
-  // Check for attached I2C devices. Make sure that the device is plugged into the IoT Node
-  byte error, address;
-  int nDevices;
-  int i2cTime;
-
-  Serial.println("Scanning...");
-  i2cTime=millis();
-  nDevices = 0;
-
-  for(address = 1; address < 127; address++ )
-  {
-    // The i2c_scanner uses the return value of
-    // the Write.endTransmisstion to see if
-    // a device did acknowledge to the address.
-    Wire.beginTransmission(address);
-    error = Wire.endTransmission();
-
-    if (error == 0)
-    {
-      Serial.print("I2C device found at address 0x");
-      if (address<16)
-      {
-      Serial.print("0");
-      i2cDevices.concat("0");
-      }
-      String addr = String(address,HEX);
-      Serial.print(addr);
-      i2cDevices.concat(addr);
-      i2cDevices.concat(" ");
-      Serial.println("  !");
-
-      nDevices++;
-    }
-    else if (error==4)
-    {
-      Serial.print("Unknown error at address 0x");
-      if (address<16)
-        Serial.print("0");
-      Serial.println(address,HEX);
-    }
-  }
-  if (nDevices == 0)
-    Serial.println("No I2C devices found\n");
-  else
-  Serial.println("done\n");
-  Serial.println(millis()-i2cTime);
-  Serial.println(sizeof(sensorReadings));
-
+  #ifdef IOTDEBUG
   delay(5000);
-  /// End of I2C checking
+ 
+  checkI2CDevices();
+  scanI2C();
+  #endif
 
-  // Check for the FRAM address
-  if (i2cDevices.indexOf("50 ")==-1)
+    // Check for I2C devices again
+  if (!node.ok())
   {
     #ifdef IOTDEBUG
-    Particle.publish("Unplugged","Plug the device into the IoT Node",PRIVATE);
-    Serial.println("Plug the device into the IoT Node");
+    // Particle.publish("Unplugged","Plug the device into the IoT Node",PRIVATE);
+    DEBUG_PRINTLN("Plug the device into the IoT Node");
     #endif
     deviceStatus="Device is not plugged into the IoTNode";
     fadeRed.setActive(true);
+    DEBUG_PRINTLN("Resetting in 10 seconds");
+    delay(10000);
+    System.reset();
   }
   else
   {
     
+    connect();
     framConfig.read(0, (uint8_t*)&config);
 
       // Code for initialization of the IoT Node
@@ -273,9 +438,9 @@ void setup() {
         framConfig.write(0, (uint8_t*)&config);
         #ifdef IOTDEBUG
         Particle.publish("Updating to use channel number:",String(manualTSChannel),PRIVATE);
-        Serial.println(manualTSChannel);
-        Serial.println(manualTSWriteKey);
-        Serial.println(manualTSReadKey);
+        DEBUG_PRINTLN(manualTSChannel);
+        DEBUG_PRINTLN(manualTSWriteKey);
+        DEBUG_PRINTLN(manualTSReadKey);
         #endif
       }
       else
@@ -289,7 +454,7 @@ void setup() {
         {
           #ifdef IOTDEBUG
           Particle.publish("Trying to create ThingSpeak channel",PRIVATE);
-          Serial.println("Trying to create ThingSpeak channel");
+          DEBUG_PRINTLN("Trying to create ThingSpeak channel");
           #endif
           delay(5000);
         }
@@ -301,18 +466,18 @@ void setup() {
     {
       #ifdef IOTDEBUG
       Particle.publish("Using previously created channel number",String(config.channelId),PRIVATE);
-      Serial.println("Using previously created channel number"+String(config.channelId));
+      DEBUG_PRINTLN("Using previously created channel number"+String(config.channelId));
       #endif
     }
       // end of first run code.
 
       if (syncRTC())
       {
-        Serial.println("RTC sync'ed with cloud");
+        DEBUG_PRINTLN("RTC sync'ed with cloud");
       }
       else
       {
-        Serial.println("RTC not sync'ed with cloud");
+        DEBUG_PRINTLN("RTC not sync'ed with cloud");
       }
       // load pointers
       dataRing.initialize();
@@ -340,14 +505,14 @@ void loop() {
     String currentCsvData = sensors.sensorReadingsToCsvUS();
 
     // Consider putting the SD logging in the IoTNode library
-    // Log.info(currentCsvData);
+    printToSd.println(currentCsvData);
 
     String csvData = currentCsvData + lastCsvData;
     #ifdef IOTDEBUG
-    Serial.println();
-    Serial.println(csvData);
-    Serial.println(String(config.channelId));
-    Serial.println(String(config.writeKey));
+    DEBUG_PRINTLN();
+    DEBUG_PRINTLN(csvData);
+    DEBUG_PRINTLN(String(config.channelId));
+    DEBUG_PRINTLN(String(config.writeKey));
     #endif
     String time_format = "absolute";
     if (waitFor(Particle.connected,config.particleTimeout)){
@@ -356,7 +521,7 @@ void loop() {
     }
     else
     {
-      Serial.println("Timeout");
+      DEBUG_PRINTLN("Timeout");
     }
     readyToGetResetAndSendSensors = false;
 
@@ -368,7 +533,7 @@ void loop() {
 
     readyToGetResetAndSendSensors = false;
     #ifdef IOTDEBUG
-    Serial.println("readyToGetResetAndSendSensors");
+    DEBUG_PRINTLN("readyToGetResetAndSendSensors");
     #endif
     // Update status information
     deviceStatus = 
@@ -394,7 +559,7 @@ void loop() {
     readyToCapturePollSensors = false;
     #ifdef IOTDEBUG
     Particle.publish("Capturing sensors",PRIVATE);
-    Serial.println("capture");
+    DEBUG_PRINTLN("capture");
     #endif
   }
   // If flag set then reset here
@@ -435,7 +600,7 @@ void TSBulkWriteCSVHandler(const char *event, const char *data) {
       dataRing.popLast((uint8_t*)&temporaryReadings);
     }
     #ifdef IOTDEBUG
-    Serial.println(data);
+    DEBUG_PRINTLN(data);
     #endif
   }
   tickleWD = true;
@@ -445,7 +610,7 @@ void TSCreateChannelHandler(const char *event, const char *data) {
   // Handle the TSCreateChannel response
   StaticJsonBuffer<256> jb;
   #ifdef IOTDEBUG
-  Serial.println(data);
+  DEBUG_PRINTLN(data);
   #endif
   //JsonObject& obj = jb.parseObject((char*)data);
   JsonObject& obj = jb.parseObject(data);
@@ -463,9 +628,9 @@ void TSCreateChannelHandler(const char *event, const char *data) {
       // Save to FRAM
       framConfig.write(0, (uint8_t*)&config);
       #ifdef IOTDEBUG
-      Serial.println(channelId);
-      Serial.println(write_key);
-      Serial.println(read_key);
+      DEBUG_PRINTLN(channelId);
+      DEBUG_PRINTLN(write_key);
+      DEBUG_PRINTLN(read_key);
       #endif
       int len = sizeof(channelId)*8+1;
       char buf[len];
@@ -481,7 +646,7 @@ void TSCreateChannelHandler(const char *event, const char *data) {
  
       ///
   } else {
-      Serial.println("Parse failed");
+      DEBUG_PRINTLN("Parse failed");
       Particle.publish("Parse failed",data,PRIVATE);
   }
 
@@ -519,7 +684,7 @@ void unplugged()
 {
   #ifdef IOTDEBUG
   Particle.publish("Unplugged","Plug the device into the IoT Node",PRIVATE);
-  Serial.println("Plug the device into the IoT Node");
+  DEBUG_PRINTLN("Plug the device into the IoT Node");
   #endif
 
 }
