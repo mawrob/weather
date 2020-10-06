@@ -40,10 +40,7 @@ extern sensorReadings_t sensorReadings;
 //struct to save created TS channel Id and keys and to check "first run"
 typedef struct
 {
-  int channelId;
   int testCheck;
-  char writeKey[17];
-  char readKey[17];
   char unitType; // U = USA, I = international
   int firmwareVersion;
   int particleTimeout;

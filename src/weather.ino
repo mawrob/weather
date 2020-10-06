@@ -1,15 +1,15 @@
-
 /*
  * Project Sentient Things IoT Node weather station
  * Description: Weather station and light level monitor. Measures Weather
  * and light level data and sends the results to Thingspeak.com
  * Author: Robert Mawrey, Sentient Things, Inc.
- * Date: December 2019
+ * Date: October 2020
+ * Version 1
+ * No ThingSpeak with serial output
+ * Untested
  */
 #include "Particle.h"
 #include "WeatherSensors.h"
-#include <thingspeak-webhooks.h>
-#include <ArduinoJson.h>
 #include "IoTNode.h"
 #include "SdCardLogHandlerRK.h"
 
@@ -49,84 +49,11 @@ sensorReadings_t sensorReadings;
 config_t config;
 
 //********CHANGE BELOW AS NEEDED**************
-// Set to true and enter TS channel ID and keys AND change firstRunTest to use an existing TS channel
-// Set to false if you wish to create a new TS channel the first time the code runs
-bool useManualTSChannel = false;
-const char *manualTSWriteKey = "XXXXXXXXXXXXXXXX";
-const char *manualTSReadKey = "XXXXXXXXXXXXXXXX";
-const int manualTSChannel = 895141;
 // Change this value to force hard reset and clearing of FRAM when Flashing
 // You have to change this value (if you have flashed before) for the TS channel to change
 const int firstRunTest = 1122124;
 //********CHANGE ABOVE AS NEEDED**************
 
-
-// ThingSpeak webhook keys. Do not edit.
-char const* webhookKey[] = {
-    "d", // "description=",
-    "e", // "elevation=",
-    "1", // "field1=",
-    "2", // "field2=",
-    "3", // "field3=",
-    "4", // "field4=",
-    "5", // "field5=",
-    "6", // "field6=",
-    "7", // "field7=",
-    "8", // "field8=",
-    "a", // "latitude=",
-    "o", // "longitude=",
-    "n", // "name=",
-    "f", // "public_flag=",
-    "t", // "tags=",
-    "u", // "url=",
-    "m", // "metadata=",
-    // "api_key=",
-    "end" //Do not remove or change
-};
-
-// ThingSpeak create Channel labels. Do not edit.
-char const* chanLabels[] = {
-    "description",
-    "elevation",
-    "field1",
-    "field2",
-    "field3",
-    "field4",
-    "field5",
-    "field6",
-    "field7",
-    "field8",
-    "latitude",
-    "longitude",
-    "name",
-    "public_flag",
-    "tags",
-    "url",
-    "metadata",
-    "end" //Do not remove or change
-};
-
-//Sensor Names
-char const* sensorNames[] = {
-  "Weather station using the Sentient Things IoT Node",   // "description=",
-  "",                       // "elevation=",
-  "Wind Direction deg.",    // "field1=",
-  "Wind Speed mph",         // "field2=",
-  "Humidity %",             // "field3=",
-  "Air Temperature F",      // "field4=",
-  "Rainfall in.",           // "field5=",
-  "Air Pressure in.",       // "field6=",
-  "Battery Voltage V",      // "field7"
-  "Light Intensity lux",    // "field8=",
-  "",                       // "latitude=",
-  "",                       // "longitude=",
-  "Weather station",        // "name=",
-  "false",                  // "public_flag=",
-  "",                       // "tags=",
-  "http://sentientthings.com",   // "url=",
-  "",                       // "metadata=",
-  "end"
-};
 
 // This is the index for the updateTSChan
 int returnIndex;
@@ -143,8 +70,6 @@ WeatherSensors sensors; //Interrupts for anemometer and rain bucket
 // are set up here too
 
 IoTNode node;
-
-ThingSpeakWebhooks thingspeak;
 
 // // Create FRAM array and ring
 framArray framConfig = node.makeFramArray(1, sizeof(config));
@@ -373,15 +298,6 @@ void setup() {
   Particle.variable("version",firmwareVersion);
   Particle.variable("devicestatus",deviceStatus);
 
-  // Subscribe to the TSBulkWriteCSV response event
-  Particle.subscribe(System.deviceID() + "/hook-response/TSBulkWriteCSV", TSBulkWriteCSVHandler, MY_DEVICES);
-  // Put a test in here for first run
-  // Subscribe to the TSCreateChannel response event
-  Particle.subscribe(System.deviceID() + "/hook-response/TSCreateChannel", TSCreateChannelHandler, MY_DEVICES);
-
-  // etc...
-  // then connect
-  //Particle.connect();
   Serial.begin(115200);
   Serial1.begin(115200);
 
@@ -424,50 +340,11 @@ void setup() {
 
     if (config.testCheck != firstRunTest)
     {
-      // myFram.format();
-      if (useManualTSChannel)
-      {
-        // Use the manually entered ThingSpeak channel and keys above
-        config.channelId = manualTSChannel;
-        strcpy(config.writeKey,manualTSWriteKey);
-        strcpy(config.readKey,manualTSReadKey);
         config.testCheck = firstRunTest;
         /// Defaults
         config.particleTimeout = 20000;
         // Save to FRAM
-        framConfig.write(0, (uint8_t*)&config);
-        #ifdef IOTDEBUG
-        Particle.publish("Updating to use channel number:",String(manualTSChannel),PRIVATE);
-        DEBUG_PRINTLN(manualTSChannel);
-        DEBUG_PRINTLN(manualTSWriteKey);
-        DEBUG_PRINTLN(manualTSReadKey);
-        #endif
-      }
-      else
-      {
-        // Create a new ThingSpeak Channel
-        thingspeak.TSCreateChan(webhookKey,sensorNames, returnIndex);
-        unsigned long webhookTime = millis();
-        framConfig.read(0, (uint8_t*)&config);
-        // Waits for TSCreateChannelHandler to run and set config.testCheck = firstRunTest
-        while (config.testCheck != firstRunTest && millis()-webhookTime<60000)
-        {
-          #ifdef IOTDEBUG
-          Particle.publish("Trying to create ThingSpeak channel",PRIVATE);
-          DEBUG_PRINTLN("Trying to create ThingSpeak channel");
-          #endif
-          delay(5000);
-        }
-        System.reset();      
-      }
-      
-    }
-    else
-    {
-      #ifdef IOTDEBUG
-      Particle.publish("Using previously created channel number",String(config.channelId),PRIVATE);
-      DEBUG_PRINTLN("Using previously created channel number"+String(config.channelId));
-      #endif
+        framConfig.write(0, (uint8_t*)&config);     
     }
       // end of first run code.
 
@@ -487,42 +364,20 @@ void setup() {
   }
 }
 
-
+// Note that CSV format is:
+// unixTime,windDegrees,wind_speed,humidity,air_temp,rain,pressure,wind_gust,millivolts,lux
 void loop() {
   if (readyToGetResetAndSendSensors)
   {
     sensors.getAndResetAllSensors();
-    String lastCsvData = "";
-    messageSize = 1;
-    if (!dataRing.isEmpty())
-    {
-      sensorReadings_t temporaryReadings;
-      dataRing.peekLast((uint8_t*)&temporaryReadings);
-      lastCsvData = "|" + sensors.sensorReadingsToCsvUS(temporaryReadings);
-      messageSize = 2;
-    }
-    dataRing.push((uint8_t*)&sensorReadings);
+
     String currentCsvData = sensors.sensorReadingsToCsvUS();
 
     // Consider putting the SD logging in the IoTNode library
     printToSd.println(currentCsvData);
 
-    String csvData = currentCsvData + lastCsvData;
-    #ifdef IOTDEBUG
-    DEBUG_PRINTLN();
-    DEBUG_PRINTLN(csvData);
-    DEBUG_PRINTLN(String(config.channelId));
-    DEBUG_PRINTLN(String(config.writeKey));
-    #endif
-    String time_format = "absolute";
-    if (waitFor(Particle.connected,config.particleTimeout)){
-      // Update TSBulkWriteCSV later to use chars
-      thingspeak.TSBulkWriteCSV(String(config.channelId), String(config.writeKey), time_format, csvData);
-    }
-    else
-    {
-      DEBUG_PRINTLN("Timeout");
-    }
+    DEBUG_PRINTLN(currentCsvData);
+
     readyToGetResetAndSendSensors = false;
 
     if (tickleWD)
@@ -537,10 +392,8 @@ void loop() {
     #endif
     // Update status information
     deviceStatus = 
-    String(config.channelId)+"|"+
     String(config.testCheck)+"|"+
-    String(config.writeKey)+"|"+
-    String(config.readKey)+"|"+
+
     String(config.unitType)+"|"+
     String(config.firmwareVersion)+"|"+
     String(config.particleTimeout)+"|"+
@@ -582,74 +435,6 @@ void getResetAndSendSensors()
   // Has to be done out of this Timer thread
   timeToNextSendMS = millis();
   readyToGetResetAndSendSensors = true;
-}
-
-void TSBulkWriteCSVHandler(const char *event, const char *data) {
-  timeToNextSendMS = SENSOR_SEND_TIME_MS - (millis() - timeToNextSendMS);
-  String resp = "true";
-  if (resp.equals(String(data)))
-  {
-    sensorReadings_t temporaryReadings;
-    if (messageSize == 2)
-    {
-      dataRing.popLast((uint8_t*)&temporaryReadings);
-      dataRing.popLast((uint8_t*)&temporaryReadings);
-    }
-    else
-    {
-      dataRing.popLast((uint8_t*)&temporaryReadings);
-    }
-    #ifdef IOTDEBUG
-    DEBUG_PRINTLN(data);
-    #endif
-  }
-  tickleWD = true;
-}
-
-void TSCreateChannelHandler(const char *event, const char *data) {
-  // Handle the TSCreateChannel response
-  StaticJsonBuffer<256> jb;
-  #ifdef IOTDEBUG
-  DEBUG_PRINTLN(data);
-  #endif
-  //JsonObject& obj = jb.parseObject((char*)data);
-  JsonObject& obj = jb.parseObject(data);
-  if (obj.success()) {
-      int channelId = obj["i"];
-      const char* write_key = obj["w"];
-      const char* read_key = obj["r"];
-      // Copy to config
-      config.channelId = channelId;
-      strcpy(config.writeKey,write_key);
-      strcpy(config.readKey,read_key);
-      config.testCheck = firstRunTest;
-      /// Defaults
-      config.particleTimeout = 20000;
-      // Save to FRAM
-      framConfig.write(0, (uint8_t*)&config);
-      #ifdef IOTDEBUG
-      DEBUG_PRINTLN(channelId);
-      DEBUG_PRINTLN(write_key);
-      DEBUG_PRINTLN(read_key);
-      #endif
-      int len = sizeof(channelId)*8+1;
-      char buf[len];
-      char const* chan = itoa(channelId,buf,10);
-      if (returnIndex!=-1)
-      {
-        thingspeak.updateTSChan(chan,sensorNames,chanLabels,returnIndex);
-      }
-      String chanTags = "weather, light, wind, temperature, humidity, pressure, Sentient Things," + System.deviceID();
-      String lab = "tags";
-      delay(1001);
-      thingspeak.TSWriteOneSetting(channelId, chanTags, lab);
- 
-      ///
-  } else {
-      DEBUG_PRINTLN("Parse failed");
-      Particle.publish("Parse failed",data,PRIVATE);
-  }
-
 }
 
 bool syncRTC()

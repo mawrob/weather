@@ -461,14 +461,12 @@ String WeatherSensors::sensorReadingsToCsvUS()
   minimiseNumericString(String::format("%.3f",((float)sensorReadings.rainmmx1000/25400)),3)+
   ","+
   minimiseNumericString(String::format("%.2f",(float)sensorReadings.barometerhPa/338.6389),2)+
-  // Not enough fields in thingspeak channel for gust
-  //  ","+
-  //  minimiseNumericString(String::format("%.1f",(Float)(sensorReadings.gust_metersph/1609.34)),1)+
+  ","+
+  minimiseNumericString(String::format("%.1f",(float)(sensorReadings.gust_metersph/1609.34)),1)+
   ","+
   minimiseNumericString(String::format("%.3f",(float)sensorReadings.millivolts/1000.0),3)+ // replace with voltage/lux
   ","+
-  String(sensorReadings.lux)+
-  ",,,,"
+  String(sensorReadings.lux)
   ;
   return csvData;
 }
@@ -492,14 +490,12 @@ String WeatherSensors::sensorReadingsToCsvUS(sensorReadings_t readings)
   minimiseNumericString(String::format("%.3f",((float)readings.rainmmx1000/25400)),3)+
   ","+
   minimiseNumericString(String::format("%.2f",(float)readings.barometerhPa/338.6389),2)+
-// Not enough fields in thingspeak for this
-//  ","+
-//  minimiseNumericString(String::format("%.1f",(Float)(readings.gust_metersph/1609.34)),1)+
+  ","+
+  minimiseNumericString(String::format("%.1f",(float)(readings.gust_metersph/1609.34)),1)+
   ","+
   minimiseNumericString(String::format("%.3f",(float)sensorReadings.millivolts/1000.0),3)+
   ","+
-  String(sensorReadings.lux)+
-  ",,,,"
+  String(sensorReadings.lux)
   ;
 
   return csvData;

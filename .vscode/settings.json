@@ -6,6 +6,6 @@
         "*.ino": "cpp"
     },
     "particle.targetDevice": "PartRoad0",
-    "particle.firmwareVersion": "1.4.4",
+    "particle.firmwareVersion": "1.5.2",
     "particle.targetPlatform": "argon"
 }
