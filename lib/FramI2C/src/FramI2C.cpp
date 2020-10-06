@@ -26,7 +26,6 @@
 
 FramI2C::FramI2C(framPartNumber partNumber): _partNumber(partNumber) // Add in I2C address later
 {
-Serial1.begin(115200);
 //	_topAddressForPartNumber[MB85RC16]		= 0x0007FFUL;
 	_topAddressForPartNumber[MB85RC64]		= 0x001FFFUL;
 	_topAddressForPartNumber[MB85RC128A]	= 0x003FFFUL;
@@ -51,38 +50,44 @@ Serial1.begin(115200);
 
 void FramI2C::_readMemory(uint32_t address, uint8_t numberOfBytes, uint8_t *buffer)
 {
-	uint16_t framAddr = (uint16_t)address;
-	// Address only correct for 64 through 512 kbit devices
-	Wire.beginTransmission(framI2CAddress);
+	WITH_LOCK(Wire)
+	{
+		uint16_t framAddr = (uint16_t)address;
+		// Address only correct for 64 through 512 kbit devices
+		Wire.beginTransmission(framI2CAddress);
 
-	Wire.write(framAddr >> 8);
-	Wire.write(framAddr & 0xFF);
+		Wire.write(framAddr >> 8);
+		Wire.write(framAddr & 0xFF);
 
-	Wire.endTransmission();
+		Wire.endTransmission();
 
-	// Maximum request size of 32 bytes
-	Wire.requestFrom(framI2CAddress, (uint8_t)numberOfBytes);
-	for (byte i=0; i < numberOfBytes; i++) {
-		buffer[i] = Wire.read();
+		// Maximum request size of 32 bytes
+		Wire.requestFrom(framI2CAddress, (uint8_t)numberOfBytes);
+		for (byte i=0; i < numberOfBytes; i++) {
+			buffer[i] = Wire.read();
+		}
+		Wire.endTransmission();
 	}
-	Wire.endTransmission();
 }
 
 
 void FramI2C::_writeMemory(uint32_t address, uint8_t numberOfBytes, uint8_t *buffer)
 {
-	uint16_t framAddr = (uint16_t)address;
-	// Address only correct for 64 through 512 kbit devices
+	WITH_LOCK(Wire)
+	{	
+		uint16_t framAddr = (uint16_t)address;
+		// Address only correct for 64 through 512 kbit devices
 
-	Wire.beginTransmission(framI2CAddress);
-	Wire.write(framAddr >> 8);
-	Wire.write(framAddr & 0xFF);
+		Wire.beginTransmission(framI2CAddress);
+		Wire.write(framAddr >> 8);
+		Wire.write(framAddr & 0xFF);
 
 
-	for (uint8_t i=0; i < numberOfBytes; i++) {
-		Wire.write(buffer[i]);
+		for (uint8_t i=0; i < numberOfBytes; i++) {
+			Wire.write(buffer[i]);
+		}
+		Wire.endTransmission();
 	}
-	Wire.endTransmission();
 }
 
 //
@@ -285,7 +290,7 @@ framResult FramI2C::format()
 
 
 FramI2CArray::FramI2CArray(FramI2C& f, uint32_t numberOfElements, byte sizeOfElement, framResult &result): 
-		_f(f), _numberOfElements(numberOfElements), _sizeOfElement(sizeOfElement)
+		_numberOfElements(numberOfElements), _sizeOfElement(sizeOfElement), _f(f)
 		
 {
 	// Creates array in FRAM
@@ -378,7 +383,7 @@ uint32_t Ring_FramArray::myModulo(uint32_t a, uint32_t b)
 }
 
 Ring_FramArray::Ring_FramArray(FramI2C& f, uint32_t numberOfElements, byte sizeOfElement, framResult &result): 
-	_f(f), _numberOfElements(numberOfElements), _sizeOfElement(sizeOfElement)
+	_numberOfElements(numberOfElements), _sizeOfElement(sizeOfElement), _f(f)
 {
 	if (_sizeOfElement < _f.getMaxBufferSize())
 	{
@@ -576,6 +581,7 @@ bool Ring_FramArray::peekLastElement(byte *buffer)
 	{
 		return false;
 	}
+
 }
 
 

@@ -11,6 +11,7 @@
 #include <Adafruit_MCP23017.h>
 #include "MCP7941x.h"
 #include "FramI2C.h"
+#include <SdFat.h>
 
 // Globals defined here
 
@@ -152,39 +153,36 @@ class framArray
    * @param result is an enum defining the success:
    * enum framResult
    * {
-   * framOK = 0,
-   * framBadStartAddress,
-   * framBadNumberOfBytes,
-   * framBadFinishAddress,
-   * framArrayElementTooBig,
-   * framBadArrayIndex,
-   * framBadArrayStartAddress,
-   * framBadResponse,
-   * framPartNumberMismatch,
-   * framUnknownError = 99
+   * 	framOK = 0,
+   * 	framBadStartAddress,
+   * 	framBadNumberOfBytes,
+   * 	framBadFinishAddress,
+   * 	framArrayElementTooBig,
+   * 	framBadArrayIndex,
+   * 	framBadArrayStartAddress,
+   * 	framBadResponse,
+   * 	framPartNumberMismatch,
+   * 	framUnknownError = 99
    * };
    */
   framArray(FramI2C& fram, uint32_t numberOfElements, byte sizeOfElement, framResult& result);
 
   /**
-   * @brief write an element to an array.
-   * Not normally used directly see makeFramArray.
-   * 
-   * @param index is the index of the array and will fail if out of bounds
-   * @param buffer is a pointer to the element - i.e. (uin8_t*)&element
-   * @return true is the write was successful
-   * @return false if the write was not successful
-   */
+   * @brief Write an element to an array.
+   *
+   * @param index is the index of the array - will fail if out of bounds
+   * @param buffer is a pointer to the element - e.g. (uin8_t*)&element
+   * @return true if the write was successful
+   */ 
   bool write(uint32_t index, byte *buffer);
 
   /**
-   * @brief read an element to an array.
-   * 
-   * @param index is the index of the array and will fail if out of bounds
-   * @param buffer is a pointer to the element - i.e. (uin8_t*)&element
-   * @return true is the read was successful
-   * @return false if the read was not successful
-   */  
+   * @brief Read an element from an array.
+   *
+   * @param index is the index of the array - will fail if out of bounds
+   * @param buffer is a pointer to the element - e.g. (uin8_t*)&element
+   * @return true if the read was successful
+   */
   bool read(uint32_t index, byte *buffer);
   
   private:
@@ -195,57 +193,65 @@ class framArray
   FramI2CArray myArray;
 };
 
+/**
+ * @brief The framRing class is used to create ring arrays of elements in Fram.
+ *
+ * The framRing keeps track of the
+ * ring pointers in Fram so that the ring can be used between power off cycles.
+ */
 class framRing
 {
   public:
 
   /**
-   * @brief Construct a new framRing Array object.  The framRing keeps track of the
-   * ring pointers in Fram so that the ring can be used between power off cycles.
-   * Not normally used directly see makeFramRing.
-   * 
+   * @brief Construct a new framRing Array object.
+   *
+   * Typically not used directly. @see IotNode::makeFramRing
+   *
    * @param fram is the fram instance that is being used - see the FramI2C class
    * @param numberOfElements is the number of elements in the array
    * @param sizeOfElement is the size of one element in bytes - use sizeof(element)
-   * @param result is an enum defining the success:
+   * @param result is an enum defining the result:
+   * @code{.cpp}
    * enum framResult
    * {
-   * framOK = 0,
-   * framBadStartAddress,
-   * framBadNumberOfBytes,
-   * framBadFinishAddress,
-   * framArrayElementTooBig,
-   * framBadArrayIndex,
-   * framBadArrayStartAddress,
-   * framBadResponse,
-   * framPartNumberMismatch,
-   * framUnknownError = 99
+   * 	framOK = 0,
+   * 	framBadStartAddress,
+   * 	framBadNumberOfBytes,
+   * 	framBadFinishAddress,
+   * 	framArrayElementTooBig,
+   * 	framBadArrayIndex,
+   * 	framBadArrayStartAddress,
+   * 	framBadResponse,
+   * 	framPartNumberMismatch,
+   * 	framUnknownError = 99
    * };
-   */  
+   * @endcode
+   */
   framRing(FramI2C& fram, uint32_t numberOfElements, byte sizeOfElement, framResult& result);
 
 	/**
-	 * @brief pop the oldest element off the ring
-	 * 
-   * @param buffer is a pointer to the element - i.e. (uin8_t*)&element
+	 * @brief Pop the oldest element off the ring.
+	 *
+   * @param buffer is a pointer to the element - e.g. (uin8_t*)&element
    * @return true is the pop was successful
    * @return false if the pop was not successful
 	 */
   bool pop(byte *buffer);
 
   /**
-   * @brief pop the last (newest) element off the ring
-   * 
-   * @param buffer is a pointer to the element - i.e. (uin8_t*)&element
+   * @brief Pop the last (newest) element off the ring.
+   *
+   * @param buffer is a pointer to the element - e.g. (uin8_t*)&element
    * @return true is the pop was successful
    * @return false if the pop was not successful
 	 */
   bool popLast(byte *buffer);
 
   /**
-   * @brief peek (do not remove) the first (oldest) element on the ring
-   * 
-   * @param buffer is a pointer to the element - i.e. (uin8_t*)&element
+   * @brief Peek (do not remove) the last (newest) element on the ring.
+   *
+   * @param buffer is a pointer to the element - e.g. (uin8_t*)&element
    * @return true is the pop was successful
    * @return false if the pop was not successful
 	 */
@@ -253,7 +259,7 @@ class framRing
 
   
     /**
-   * @brief peek (do not remove) the last (newest) element on the ring
+   * @brief Peek (do not remove) the last (newest) element on the ring
    * 
    * @param buffer is a pointer to the element - i.e. (uin8_t*)&element
    * @return true is the pop was successful
@@ -262,22 +268,22 @@ class framRing
   bool peekLast(byte *buffer);
   
 	/**
-	 * @brief push an element onto the ring. OVERWRITE if full.
+	 * @brief Push an element onto the ring. OVERWRITE if full.
 	 * 
-   * @param buffer is a pointer to the element - i.e. (uin8_t*)&element
+   * @param buffer is a pointer to the element - e.g. (uin8_t*)&element
    * @return true is the push was successful
    * @return false if the push was not successful
 	 */	
   void push(byte *buffer);
 
   /**
-   * @brief clear the ring array with 0 values and reset the pointers to the beginning
+   * @brief Clear the ring array with 0 values and reset the pointers to the beginning
    * 
    */
 	void clearArray();
 
   /**
-   * @brief check to see if the ring array is empty
+   * @brief Check to see if the ring array is empty.
    * 
    * @return true if empty
    * @return false if not empty
@@ -285,7 +291,7 @@ class framRing
 	bool isEmpty();
 
   /**
-   * @brief check to see if the ring array is full
+   * @brief Check to see if the ring array is full.
    * 
    * @return true if full
    * @return false if not full
@@ -293,7 +299,7 @@ class framRing
 	bool isFull();
 
   /**
-   * @brief initializes the ring by loading the saved pointers.
+   * @brief Initializes the ring by loading the saved pointers.
    * Must be run (in setup) before using the ring
    * 
    */
@@ -308,7 +314,7 @@ class framRing
 };
 
 /**
- * @brief main IoT Node class.
+ * @brief Main IoT Node class.
  * Includes functions to manage external power. Read the state of the battery charger.
  * Send a "tickle" to reset the watchdog timer and control GPIO on the IO headers. 
  * 
@@ -318,22 +324,33 @@ class IoTNode
   public:
 
   /**
-   * @brief Construct a new Io T Node object
+   * @brief Construct a new IoT Node object
    * 
    */
   IoTNode();
 
   /**
-   * @brief start the IoT Node.
+   * @brief Start the IoT Node.
    * Sets the state of the internal MCP23018 expander.
    * Reads the node mac address stored in the MCP79412
    * real time clock. Starts (Wire) I2C if needed.
+   * Checks
    * 
    */
-  void begin();
 
   /**
-   * @brief checks to see if the IoT Node is working correctly
+   * @brief Start the IoT Node.
+   * Sets the state of the internal MCP23018 expander.
+   * Reads the node mac address stored in the MCP79412
+   * real time clock. Starts (Wire) I2C and attempts to reset if needed.
+   * Checks for the MCP23018 expander.
+   * @return true if the MCP23018 responds
+   * @return false if the MCP23018 does not respond
+   */
+  bool begin();
+
+  /**
+   * @brief Checks to see if the IoT Node is working correctly
    * by checking to make sure that the integrated I2C parts
    * (MCP23018 expander, MCP79412 RTCC, MB85RC256V FRAM & MCP3221 ADC)
    * respond.
@@ -366,7 +383,7 @@ class IoTNode
   void setPower(powerName pwrName, bool state);
 
    /**
-   * @brief Switch ON the external (or internal if added) power
+   * @brief Switch ON the external (or internal if added) power.
    * Controls the enable pins on the IoT Node - see pwrName
    * The IoT Node includes on-board regulators for external 3.3V (EXT3V3) and
    * external 5V (EXT5V)
@@ -376,7 +393,7 @@ class IoTNode
   void powerON(powerName pwrName);
 
    /**
-   * @brief Switch OFF the external (or internal if added) power
+   * @brief Switch OFF the external (or internal if added) power.
    * Controls the enable pins on the IoT Node - see pwrName
    * The IoT Node includes on-board regulators for external 3.3V (EXT3V3) and
    * external 5V (EXT5V)
@@ -386,7 +403,7 @@ class IoTNode
   void powerOFF(powerName pwrName);
 
    /**
-   * @brief Switch ON the external (or internal if added) power
+   * @brief Switch ON the external (or internal if added) power.
    * Controls the enable pins on the IoT Node - see pwrName
    * The IoT Node includes on-board regulators for external 3.3V (EXT3V3) and
    * external 5V (EXT5V)
@@ -394,7 +411,7 @@ class IoTNode
   void allPowerON();
 
    /**
-   * @brief Switch OFF the external (or internal if added) power
+   * @brief Switch OFF the external (or internal if added) power.
    * Controls the enable pins on the IoT Node - see pwrName
    * The IoT Node includes on-board regulators for external 3.3V (EXT3V3) and
    * external 5V (EXT5V)
@@ -402,7 +419,7 @@ class IoTNode
   void allPowerOFF();
 
   /**
-   * @brief use the internal real time clock to switch off the IoT Node power
+   * @brief Use the internal real time clock to switch off the IoT Node power.
    * The IoT Node "RTC CONTROL" switch must be set to "Yes" for this to work.
    * Note that the sleep times is in seconds.  The internal clock adds the sleep
    * seconds to the current date and time and stores the new wake up
@@ -426,7 +443,7 @@ class IoTNode
   void switchOffFor(long seconds, maskValue mask);
 
   /**
-   * @brief use the internal real time clock to switch off the IoT Node power
+   * @brief Use the internal real time clock to switch off the IoT Node power.
    * The IoT Node "RTC CONTROL" switch must be set to "Yes" for this to work.
    * Note that the sleep times is in seconds.  The internal clock adds the sleep
    * seconds to the current date and time and stores the new wake up
@@ -453,7 +470,7 @@ class IoTNode
   void setPullUp(gioName ioName, bool state);
 
   /**
-   * @brief Set the selected I/O connector GPIO pin high or low
+   * @brief Set the selected I/O connector GPIO pin high or low.
    * See the IoT Node documentation for pin configurations
    * of the RJ45 connectors (not ethernet)
    * Uses the internal MCP23018 expander.
@@ -464,7 +481,7 @@ class IoTNode
   void digitalWrite(gioName ioName, bool state);
 
   /**
-   * @brief read the input state of the selected connector GPIO pin
+   * @brief Read the input state of the selected connector GPIO pin.
    * See the IoT Node documentation for pin configurations
    * of the RJ45 connectors (not ethernet)
    * Uses the internal MCP23018 expander.
@@ -476,7 +493,7 @@ class IoTNode
   bool digitalRead(gioName ioName);
 
   /**
-   * @brief send a short pulse to the analog watchdog timer to stop it resetting the node.
+   * @brief Send a short pulse to the analog watchdog timer to stop it resetting the node.
    * The analog watchdog timer may be set using slider and dip switches to pull the
    * reset line on the IoT Node low to reset the device that is plugged into the node. The reset period
    * between 11 seconds and 2 hours is selected by a dip switch (see documentation).  
@@ -490,7 +507,7 @@ class IoTNode
   void tickleWatchdog();
 
   /**
-   * @brief checks the state of the IoT Node to see if a LiPo battery is powering the node.
+   * @brief Checks the state of the IoT Node to see if a LiPo battery is powering the node.
    * Uses the MCP23018 expander to read the digital state pins on the TPS2113 switch.
    * The TPS2113 automatically switches between the LiPo and the 3AA/A power source.
    * The TPS2113 switches to the 3AA (if connected) when the LiPo runs flat.
@@ -501,7 +518,7 @@ class IoTNode
   bool isLiPoPowered();
 
   /**
-   * @brief checks the state of the IoT Node to see if a 3AA/A battery is powering the node.
+   * @brief Checks the state of the IoT Node to see if a 3AA/A battery is powering the node.
    * Uses the MCP23018 expander to read the digital state pins on the TPS2113 switch.
    * The TPS2113 automatically switches between the LiPo and the 3AA/A power source.
    * The TPS2113 switches to the 3AA (if connected) when the LiPo runs flat.
@@ -512,7 +529,7 @@ class IoTNode
   bool is3AAPowered();
 
   /**
-   * @brief checks the state of the CN3065 LiPo charger DONE output pin.
+   * @brief Checks the state of the CN3065 LiPo charger DONE output pin.
    * Uses the MCP23018 expander to check the pin.
    * 
    * @return true if the LiPo is fully charged
@@ -521,7 +538,7 @@ class IoTNode
   bool isLiPoCharged();
 
   /**
-   * @brief checks the state of the CN3065 LiPo charger CHRG output pin.
+   * @brief Checks the state of the CN3065 LiPo charger CHRG output pin.
    * Uses the MCP23018 expander to check the pin.
    * 
    * @return true if the LiPo is charging
@@ -530,7 +547,7 @@ class IoTNode
   bool isLiPoCharging();
 
   /**
-   * @brief measures the IoT Node input voltage.
+   * @brief Measures the IoT Node input voltage.
    * The voltage is measured after the TPS2113 auto switching
    * power multiplexer.
    * 
@@ -539,7 +556,7 @@ class IoTNode
   float voltage();
 
   /**
-   * @brief returns the real time clock time in epoch or unix time.
+   * @brief Returns the real time clock time in epoch or unix time.
    * 
    * @return uint32_t unix time in seconds
    */
@@ -553,7 +570,7 @@ class IoTNode
   void setUnixTime(uint32_t unixtime);
 
   /**
-   * @brief the IoT Node mac address as a string.
+   * @brief The IoT Node mac address as a string.
    * This is the value of the MCP79412 real time clock.
    * MCP79412 includes an EUI-64 node address pre-programmed
    * into the protected EEPROM block that may be used as a unique
@@ -563,7 +580,25 @@ class IoTNode
   String nodeID;
 
   /**
-   * @brief create a ring array of elements in Fram
+   * @brief Copies the FRAM memory from byte 129 onwards to a file on the uSD card
+   * 
+   * @param filename 
+   * @return true 
+   * @return false 
+   */
+  bool backupFRAMtoSD(String filename);
+
+  /**
+   * @brief Restores a previous backup of FRAM from a file on the uSD card to FRAM
+   * 
+   * @param filename 
+   * @return true 
+   * @return false 
+   */
+  bool restoreFRAMfromSD(String filename);
+
+  /**
+   * @brief Create a ring array of elements in Fram.
    * The function keeps track of the ring array pointers.
    * IoT Node includes a 256 kbits MB85RC256V I2C Fram
    * Requires initialize() to be run prior to use.
@@ -580,7 +615,7 @@ class IoTNode
   framRing makeFramRing(uint32_t numberOfElements, byte sizeOfElement);
 
   /**
-   * @brief create an array of elements in Fram
+   * @brief Create an array of elements in Fram.
    * The function keeps track of the ring array pointers.
    * IoT Node includes a 256 kbits MB85RC256V I2C Fram
    * i.e.
@@ -600,7 +635,7 @@ class IoTNode
   framArray makeFramArray(uint32_t numberOfElements, byte sizeOfElement);
 
   /**
-   * @brief returns framResult enum
+   * @brief Returns framResult enum.
    * 
    * enum framResult
    * {
@@ -622,6 +657,8 @@ class IoTNode
   private:
   void array_to_string(byte array[], unsigned int len, char buffer[]);
   FramI2C myFram;
+  void writeFRAM(uint32_t startaddress, uint8_t numberOfBytes, uint8_t *buffer);
+  void readFRAM(uint32_t startaddress, uint8_t numberOfBytes, uint8_t *buffer);
 };
 
 #endif
